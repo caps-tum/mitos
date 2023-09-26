@@ -59,7 +59,10 @@ struct func_args
 //
 //     og_pthread_exit(retval);
 // }
-mitos_output mout;
+thread_local static mitos_output mout;
+long ts_output_prefix_omp;
+long tid_omp_first;
+
 
 #ifdef USE_MPI
 // MPI hooks
@@ -139,6 +142,7 @@ int MPI_Finalize()
     if (mpi_rank == 0) {
         int ret_val = Mitos_merge_files(std::to_string(ts_output) + "_rank_", std::to_string(ts_output) + "_rank_0");
     }
+    MPI_Barrier(MPI_COMM_WORLD);
     return PMPI_Finalize();
 }
 #endif // USE_MPI
@@ -177,26 +181,49 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
                                           ompt_data_t *thread_data) {
     uint64_t tid_omp = thread_data->value = my_next_id();
     //counter[tid].cc.thread_begin += 1;
-//#ifdef SYS_gettid
-//    pid_t tid = syscall(SYS_gettid);
-//#else
-//#error "SYS_gettid unavailable on this system"
-//    exit(1);
-//#endif
-//    int cpu_num = sched_getcpu();
-//    printf("Start Thread OMP: %u, tid: %u, omp_tid: %lu, cpu_id: %u\n",getpid(), tid, tid_omp, cpu_num);
+#ifdef SYS_gettid
+    pid_t tid = syscall(SYS_gettid);
+#else
+#error "SYS_gettid unavailable on this system"
+    exit(1);
+#endif
+    if (tid_omp_first == -1) {
+        tid_omp_first = tid;
+    }
 
+    //int cpu_num = sched_getcpu();
+    //printf("Start Thread OMP: %u, tid: %u, omp_tid: %lu, cpu_id: %u\n",getpid(), tid, tid_omp, cpu_num);
+    char rank_prefix[48];
+    sprintf(rank_prefix, "%ld_openmp_distr_mon_%d", ts_output_prefix_omp, tid);
+    Mitos_create_output(&mout, rank_prefix);
+//    pid_t curpid = getpid();
+//    std::cout << "Curpid: " << curpid << ", Rank: " << std::endl;
+
+    Mitos_pre_process(&mout);
+    Mitos_set_pid(getpid());
+
+    Mitos_set_handler_fn(&sample_handler_omp,NULL);
+    Mitos_set_sample_latency_threshold(3);
+    Mitos_set_sample_event_period(DEFAULT_PERIOD);
+    Mitos_set_sample_time_frequency(4000);
+    Mitos_begin_sampler();
+    std::cout << "Begin sampling: " << getpid() << "\n";
 }
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     uint64_t tid_omp = thread_data->value;
     //counter[tid].cc.thread_end += 1;
-//#ifdef SYS_gettid
-//    pid_t tid = syscall(SYS_gettid);
-//#else
-//#error "SYS_gettid unavailable on this system"
-//#endif
+#ifdef SYS_gettid
+    pid_t tid = syscall(SYS_gettid);
+#else
+#error "SYS_gettid unavailable on this system"
+#endif
 //     printf("End Thread OMP: %u, tid: %u, omp_tid: %lu\n",getpid(), tid, tid_omp);
+    Mitos_end_sampler();
+    // /proc/self/exe
+    Mitos_post_process("", &mout);
+
+    //std::cout << "Thread End\n";
 }
 
 int ompt_initialize(ompt_function_lookup_t lookup, int initial_device_num,
@@ -211,20 +238,9 @@ int ompt_initialize(ompt_function_lookup_t lookup, int initial_device_num,
     register_callback(ompt_callback_thread_end);
 
     save_virtual_address_offset("virt_address.txt");
-    Mitos_create_output(&mout, "openmp_all");
-//    pid_t curpid = getpid();
-//    std::cout << "Curpid: " << curpid << ", Rank: " << std::endl;
+    ts_output_prefix_omp = std::time(NULL);
 
-    Mitos_pre_process(&mout);
-    Mitos_set_pid(getpid());
-
-    Mitos_set_handler_fn(&sample_handler_omp,NULL);
-    Mitos_set_sample_latency_threshold(3);
-    Mitos_set_sample_event_period(DEFAULT_PERIOD);
-    Mitos_set_sample_time_frequency(4000);
-    Mitos_begin_sampler();
-    std::cout << "Begin sampling: " << getpid() << "\n";
-
+    tid_omp_first = -1;
 
     return 1; // success: activates tool
 }
@@ -234,13 +250,16 @@ void ompt_finalize(ompt_data_t *tool_data) {
            omp_get_wtime() - *(double *) (tool_data->ptr));
 
     printf("End Sampler...\n");
-    Mitos_end_sampler();
-    printf("Post process...\n");
+    //Mitos_end_sampler();
+    //printf("Post process...\n");
     // ./../examples/omp_example
     // /proc/self/exe
     // TODO: valid bin_name leads to an infinite loop in Symtab::SymtabAPI::openFile(bin_name, ...)
-    Mitos_post_process("", &mout);
-
+    //Mitos_post_process("", &mout);
+//    while(existing_threads != completed_threads_omp) {
+//
+//    }
+    Mitos_merge_files(std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
 }
 
 // only used for debugging purposes

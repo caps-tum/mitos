@@ -1,0 +1,5 @@
+./src/mitosrun ./examples/test_prog1 -s ./../examples
+
+
+
+./src/mitosrun ./examples/test_prog2 -s ./../examples

@@ -297,9 +297,39 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
     return 0;
 }
 
+void Mitos_write_samples_header(std::ofstream& fproc) {
+    // Write header for processed samples
+    //std::ofstream fproc = fproc_pointer;
+    fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,level,hit_type,op_type,snoop_mode,tlb_access,numa";
+#ifdef USE_IBS_FETCH
+    fproc << ",ibs_fetch_max_cnt,ibs_fetch_cnt,ibs_fetch_lat,ibs_fetch_en,ibs_fetch_val,ibs_fetch_comp,ibs_ic_miss,ibs_phy_addr_valid,ibs_l1_tlb_pg_sz,ibs_l1_tlb_miss,ibs_l2_tlb_miss,ibs_rand_en,ibs_fetch_l2_miss,";
+    fproc << "ibs_fetch_lin_addr,ibs_fetch_phy_addr,ibs_fetch_control_extended";
+#endif
+#ifdef USE_IBS_OP
+    fproc << ",ibs_op_max_cnt,ibs_op_en,ibs_op_val,ibs_op_cnt_ctl,ibs_op_max_cnt_upper,ibs_op_cur_cnt,";
+        fproc << "ibs_op_rip,";
+        // ibs_op_data_1
+        fproc << "ibs_comp_to_ret_ctr,ibs_tag_to_ret_ctr,ibs_op_brn_resync,ibs_op_misp_return,ibs_op_return,ibs_op_brn_taken,ibs_op_brn_misp,";
+        fproc << "ibs_op_brn_ret,ibs_rip_invalid,ibs_op_brn_fuse,ibs_op_microcode,";
+        // ibs_op_data_2
+        fproc << "ibs_nb_req_src,ibs_nb_req_dst_node,ibs_nb_req_cache_hit_st,";
+        // ibs_op_data_3
+        fproc << "ibs_ld_op,ibs_st_op,ibs_dc_l1_tlb_miss,ibs_dc_l2_tlb_miss,ibs_dc_l1_tlb_hit_2m,ibs_dc_l1_tlb_hit_1g,ibs_dc_l2_tlb_hit_2m,";
+        fproc << "ibs_dc_miss,ibs_dc_miss_acc,ibs_dc_ld_bank_con,ibs_dc_st_bank_con,ibs_dc_st_to_ld_fwd,ibs_dc_st_to_ld_can,";
+        fproc << "ibs_dc_wc_mem_acc,ibs_dc_uc_mem_acc,ibs_dc_locked_op,ibs_dc_no_mab_alloc,ibs_lin_addr_valid,ibs_phy_addr_valid,";
+        fproc << "ibs_dc_l2_tlb_hit_1g,ibs_l2_miss,ibs_sw_pf,ibs_op_mem_width,ibs_op_dc_miss_open_mem_reqs,ibs_dc_miss_lat,ibs_tlb_refill_lat,";
+        // lin and phy address
+        fproc << "ibs_op_phy,ibs_op_lin,";
+        // ibs brs target address
+        fproc << "ibs_branch_target";
+#endif
+    fproc << "\n";
+}
+
 int Mitos_post_process(const char *bin_name, mitos_output *mout)
 {
     int err = 0;
+    fflush(mout->fout_raw); // flush raw samples stream before post processing starts
 
     // Open input/output files
     std::ifstream fraw(mout->fname_raw);
@@ -327,14 +357,18 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     {
         std::cerr << "Mitos: Failed to open Symtab object for " << bin_name << std::endl;
         std::cerr << "Saving raw data (no source/instruction attribution)" << std::endl;
+
+        fraw.close();
+        fproc.close();
+
+
         err = rename(mout->fname_raw, mout->fname_processed);
         if(err)
         {
             std::cerr << "Mitos: Failed to rename raw output to " << mout->fname_processed << std::endl;
         }
 
-        fproc.close();
-        fraw.close();
+
 
         return 1;
     }
@@ -345,31 +379,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     unsigned int inst_length = InstructionDecoder::maxInstructionLength;
     Architecture arch = symtab_obj->getArchitecture();
 
-    // Write header for processed samples
-    fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,level,hit_type,op_type,snoop_mode,tlb_access,numa";
-#ifdef USE_IBS_FETCH
-        fproc << ",ibs_fetch_max_cnt,ibs_fetch_cnt,ibs_fetch_lat,ibs_fetch_en,ibs_fetch_val,ibs_fetch_comp,ibs_ic_miss,ibs_phy_addr_valid,ibs_l1_tlb_pg_sz,ibs_l1_tlb_miss,ibs_l2_tlb_miss,ibs_rand_en,ibs_fetch_l2_miss,";
-        fproc << "ibs_fetch_lin_addr,ibs_fetch_phy_addr,ibs_fetch_control_extended";
-#endif
-#ifdef USE_IBS_OP
-        fproc << ",ibs_op_max_cnt,ibs_op_en,ibs_op_val,ibs_op_cnt_ctl,ibs_op_max_cnt_upper,ibs_op_cur_cnt,";
-        fproc << "ibs_op_rip,";
-        // ibs_op_data_1
-        fproc << "ibs_comp_to_ret_ctr,ibs_tag_to_ret_ctr,ibs_op_brn_resync,ibs_op_misp_return,ibs_op_return,ibs_op_brn_taken,ibs_op_brn_misp,";
-        fproc << "ibs_op_brn_ret,ibs_rip_invalid,ibs_op_brn_fuse,ibs_op_microcode,";
-        // ibs_op_data_2
-        fproc << "ibs_nb_req_src,ibs_nb_req_dst_node,ibs_nb_req_cache_hit_st,";
-        // ibs_op_data_3
-        fproc << "ibs_ld_op,ibs_st_op,ibs_dc_l1_tlb_miss,ibs_dc_l2_tlb_miss,ibs_dc_l1_tlb_hit_2m,ibs_dc_l1_tlb_hit_1g,ibs_dc_l2_tlb_hit_2m,";
-        fproc << "ibs_dc_miss,ibs_dc_miss_acc,ibs_dc_ld_bank_con,ibs_dc_st_bank_con,ibs_dc_st_to_ld_fwd,ibs_dc_st_to_ld_can,";
-        fproc << "ibs_dc_wc_mem_acc,ibs_dc_uc_mem_acc,ibs_dc_locked_op,ibs_dc_no_mab_alloc,ibs_lin_addr_valid,ibs_phy_addr_valid,";
-        fproc << "ibs_dc_l2_tlb_hit_1g,ibs_l2_miss,ibs_sw_pf,ibs_op_mem_width,ibs_op_dc_miss_open_mem_reqs,ibs_dc_miss_lat,ibs_tlb_refill_lat,";
-        // lin and phy address
-        fproc << "ibs_op_phy,ibs_op_lin,";
-        // ibs brs target address
-        fproc << "ibs_branch_target";
-#endif
-    fproc << "\n";
+    Mitos_write_samples_header(fproc);
 
     //get base (.text) virtual address of the measured process
     //std::ifstream foffset("/u/home/vanecek/sshfs/sv_mitos/build/test3.txt");
@@ -487,9 +497,9 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
 
         tmp_line++;
     }
-
-    fproc.close();
     fraw.close();
+    fproc.close();
+
 
     err = remove(mout->fname_raw);
     if(err)
@@ -528,10 +538,10 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     fs::create_directory(path_dir_result + "/hwdata");
     fs::create_directory(path_dir_result + "/src");
     // copy first directory
-    fs::copy(path_first_dir, path_dir_result);
-    fs::copy(path_first_dir + "/data", path_dir_result + "/data");
-    fs::copy(path_first_dir + "/hwdata", path_dir_result + "/hwdata");
-    fs::copy(path_first_dir + "/src", path_dir_result + "/src");
+    fs::copy(path_first_dir, path_dir_result, fs::copy_options::overwrite_existing | fs::copy_options::recursive);
+    //fs::copy(path_first_dir + "/data", path_dir_result + "/data");
+    //fs::copy(path_first_dir + "/hwdata", path_dir_result + "/hwdata");
+    //fs::copy(path_first_dir + "/src", path_dir_result + "/src");
     // delete first folder
     fs::remove_all(path_first_dir);
 

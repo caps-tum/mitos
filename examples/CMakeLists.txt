@@ -6,8 +6,8 @@ set(CMAKE_BUILD_TYPE Debug)
 add_executable(api_test api_test.cpp)
 add_executable(matmul matmul.cpp)
 
-
 target_link_libraries(api_test mitos)
+target_link_libraries(matmul dl)
 
 if(Dyninst_FOUND)
     include_directories(${DYNINST_INCLUDE_DIR})
