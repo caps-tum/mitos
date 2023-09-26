@@ -6,3 +6,5 @@ cscope.files
 cscope.out
 
 build/
+cmake-build-debug/
+.idea/

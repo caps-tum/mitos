@@ -12,17 +12,21 @@
 #include <asm/unistd.h>
 #include <pthread.h>
 #include <signal.h>
+#include <vector>
+#include <mutex>
 
 #include "Mitos.h"
 
 class procsmpl;
 class threadsmpl;
 
+
 struct perf_event_container
 {
     int fd;
     struct perf_event_attr attr;
     struct perf_event_mmap_page *mmap_buf;
+    int running;
 };
 
 // Process-wide sampler
@@ -51,16 +55,17 @@ public:
     void set_handler_fn(sample_handler_fn_t h, void* args) 
         { handler_fn = h; handler_fn_args = args; }
 
+    void add_event(int tid, mitos_output* mout);
+
+    pid_t target_pid;
 private:
     // set up perf_event_attr
     void init_attrs();
-
+    void init_attrs_ibs();
 private:
     // perf event configuration
     int num_attrs;
     struct perf_event_attr *attrs;
-
-    pid_t target_pid;
 
     uint64_t use_frequency;
 
@@ -80,6 +85,7 @@ private:
 
     // misc
     bool first_time;
+
 };
 
 // Thread-local Sampler
@@ -92,6 +98,11 @@ public:
     int begin_sampling();
     void end_sampling();
 
+    ~threadsmpl(){
+        std::destroy(vec_events.begin(), vec_events.end());
+    }
+
+
     int init(procsmpl *parent);
 
 //private:
@@ -103,10 +114,21 @@ public:
 
     int ready;
 
+
     int num_events;
+    int counter_update;
     struct perf_event_container *events;
 
+    bool* core_occupied;
+    int core_count;
+    std::vector<perf_event_container> vec_events;
+    std::mutex m;
+
     perf_event_sample pes;
+
+    int enable_event(int event_id);
+    void disable_event(int event_id);
+
 };
 
 #endif

@@ -13,11 +13,11 @@
 #include <cstdlib>
 
 #ifndef __has_include
-  static_assert(false, "__has_include not supported");
+static_assert(false, "__has_include not supported");
 #else
 #  if __cplusplus >= 201703L && __has_include(<filesystem>)
 #    include <filesystem>
-     namespace fs = std::filesystem;
+namespace fs = std::filesystem;
 #  elif __has_include(<experimental/filesystem>)
 #    include <experimental/filesystem>
      namespace fs = std::experimental::filesystem;
@@ -158,7 +158,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
     Mitos_resolve_symbol(sample);
 
     fprintf(mout->fout_raw,
-            "%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu,%s,%s,%s,%s,%s,%d\n",
+            "%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu,%s,%s,%s,%s,%s,%d",
             sample->ip,
             sample->data_symbol,
             sample->data_size,
@@ -178,13 +178,158 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
             sample->mem_snoop,
             sample->mem_tlb,
             sample->numa_node);
+#ifdef USE_IBS_FETCH
+//        std::string ibs_l1_tlb_pg_size = "error";
+//        switch(sample->ibs_fetch_ctl.reg.ibs_l1_tlb_pg_sz){
+//            case 0:
+//                ibs_l1_tlb_pg_size ="4KB";
+//                break;
+//            case 1:
+//                ibs_l1_tlb_pg_size = "2MB";
+//                break;
+//            case 2:
+//                ibs_l1_tlb_pg_size = "1GB";
+//                break;
+//            default:
+//                break;
+//        }
+        fprintf(mout->fout_raw,
+                ",%u,%u,%u, %u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%lx,%lx,%lx",
+                sample->ibs_fetch_ctl.reg.ibs_fetch_max_cnt,
+                sample->ibs_fetch_ctl.reg.ibs_fetch_cnt,
+                sample->ibs_fetch_ctl.reg.ibs_fetch_lat,
 
+                sample->ibs_fetch_ctl.reg.ibs_fetch_en,
+                sample->ibs_fetch_ctl.reg.ibs_fetch_val,
+                sample->ibs_fetch_ctl.reg.ibs_fetch_comp,
+                sample->ibs_fetch_ctl.reg.ibs_ic_miss,
+                sample->ibs_fetch_ctl.reg.ibs_phy_addr_valid,
+                sample->ibs_fetch_ctl.reg.ibs_l1_tlb_pg_sz,
+                //ibs_l1_tlb_pg_size.c_str(),
+                sample->ibs_fetch_ctl.reg.ibs_l1_tlb_miss,
+                sample->ibs_fetch_ctl.reg.ibs_l2_tlb_miss,
+                sample->ibs_fetch_ctl.reg.ibs_rand_en,
+                sample->ibs_fetch_ctl.reg.ibs_fetch_l2_miss,
+
+                sample->ibs_fetch_lin,
+                sample->ibs_fetch_phy.reg.ibs_fetch_phy_addr,
+                sample->ibs_fetch_ext
+        );
+#endif
+#ifdef USE_IBS_OP
+        // op_ctl
+        fprintf(mout->fout_raw,
+                ",%u,%u,%u,%u,%u,%u,",
+                sample->ibs_op_ctl.reg.ibs_op_max_cnt,
+                sample->ibs_op_ctl.reg.ibs_op_en,
+                sample->ibs_op_ctl.reg.ibs_op_val,
+                sample->ibs_op_ctl.reg.ibs_op_cnt_ctl,
+                sample->ibs_op_ctl.reg.ibs_op_max_cnt_upper,
+                sample->ibs_op_ctl.reg.ibs_op_cur_cnt
+        );
+        // op_rip
+        fprintf(mout->fout_raw,
+                "%lx,", sample->ibs_op_rip);
+        // op_data_1
+        fprintf(mout->fout_raw,
+                "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,",
+                sample->ibs_op_data_1.reg.ibs_comp_to_ret_ctr,
+                sample->ibs_op_data_1.reg.ibs_tag_to_ret_ctr,
+                sample->ibs_op_data_1.reg.ibs_op_brn_resync,
+                sample->ibs_op_data_1.reg.ibs_op_misp_return,
+                sample->ibs_op_data_1.reg.ibs_op_return,
+                sample->ibs_op_data_1.reg.ibs_op_brn_taken,
+                sample->ibs_op_data_1.reg.ibs_op_brn_misp,
+                sample->ibs_op_data_1.reg.ibs_op_brn_ret,
+                sample->ibs_op_data_1.reg.ibs_rip_invalid,
+                sample->ibs_op_data_1.reg.ibs_op_brn_fuse,
+                sample->ibs_op_data_1.reg.ibs_op_microcode
+        );
+        // op_data_2
+        fprintf(mout->fout_raw,
+                "%u,%u,%u,",
+                sample->ibs_op_data_2.reg.ibs_nb_req_src,
+                sample->ibs_op_data_2.reg.ibs_nb_req_dst_node,
+                sample->ibs_op_data_2.reg.ibs_nb_req_cache_hit_st
+        );
+        // op_data_3
+        fprintf(mout->fout_raw,
+                "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,",
+                sample->ibs_op_data_3.reg.ibs_ld_op,
+                sample->ibs_op_data_3.reg.ibs_st_op,
+                sample->ibs_op_data_3.reg.ibs_dc_l1_tlb_miss,
+                sample->ibs_op_data_3.reg.ibs_dc_l2_tlb_miss,
+                sample->ibs_op_data_3.reg.ibs_dc_l1_tlb_hit_2m,
+                sample->ibs_op_data_3.reg.ibs_dc_l1_tlb_hit_1g,
+                sample->ibs_op_data_3.reg.ibs_dc_l2_tlb_hit_2m,
+                sample->ibs_op_data_3.reg.ibs_dc_miss,
+                sample->ibs_op_data_3.reg.ibs_dc_miss_acc,
+                sample->ibs_op_data_3.reg.ibs_dc_ld_bank_con,
+                sample->ibs_op_data_3.reg.ibs_dc_st_bank_con,
+                sample->ibs_op_data_3.reg.ibs_dc_st_to_ld_fwd,
+                sample->ibs_op_data_3.reg.ibs_dc_st_to_ld_can,
+                sample->ibs_op_data_3.reg.ibs_dc_wc_mem_acc,
+                sample->ibs_op_data_3.reg.ibs_dc_uc_mem_acc
+        );
+        fprintf(mout->fout_raw,
+                "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,",
+                sample->ibs_op_data_3.reg.ibs_dc_locked_op,
+                sample->ibs_op_data_3.reg.ibs_dc_no_mab_alloc,
+                sample->ibs_op_data_3.reg.ibs_lin_addr_valid,
+                sample->ibs_op_data_3.reg.ibs_phy_addr_valid,
+                sample->ibs_op_data_3.reg.ibs_dc_l2_tlb_hit_1g,
+                sample->ibs_op_data_3.reg.ibs_l2_miss,
+                sample->ibs_op_data_3.reg.ibs_sw_pf,
+                sample->ibs_op_data_3.reg.ibs_op_mem_width,
+                sample->ibs_op_data_3.reg.ibs_op_dc_miss_open_mem_reqs,
+                sample->ibs_op_data_3.reg.ibs_dc_miss_lat,
+                sample->ibs_op_data_3.reg.ibs_tlb_refill_lat
+        );
+        //phy, lin and brs target
+        fprintf(mout->fout_raw,
+                "%lx,%lx,%lx",
+                sample->ibs_op_phy.reg.ibs_dc_phys_addr,
+                sample->ibs_op_lin,
+                sample->ibs_op_brs_target
+        );
+#endif
+    fprintf(mout->fout_raw, "\n");
     return 0;
+}
+
+void Mitos_write_samples_header(std::ofstream& fproc) {
+    // Write header for processed samples
+    //std::ofstream fproc = fproc_pointer;
+    fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,level,hit_type,op_type,snoop_mode,tlb_access,numa";
+#ifdef USE_IBS_FETCH
+    fproc << ",ibs_fetch_max_cnt,ibs_fetch_cnt,ibs_fetch_lat,ibs_fetch_en,ibs_fetch_val,ibs_fetch_comp,ibs_ic_miss,ibs_phy_addr_valid,ibs_l1_tlb_pg_sz,ibs_l1_tlb_miss,ibs_l2_tlb_miss,ibs_rand_en,ibs_fetch_l2_miss,";
+    fproc << "ibs_fetch_lin_addr,ibs_fetch_phy_addr,ibs_fetch_control_extended";
+#endif
+#ifdef USE_IBS_OP
+    fproc << ",ibs_op_max_cnt,ibs_op_en,ibs_op_val,ibs_op_cnt_ctl,ibs_op_max_cnt_upper,ibs_op_cur_cnt,";
+        fproc << "ibs_op_rip,";
+        // ibs_op_data_1
+        fproc << "ibs_comp_to_ret_ctr,ibs_tag_to_ret_ctr,ibs_op_brn_resync,ibs_op_misp_return,ibs_op_return,ibs_op_brn_taken,ibs_op_brn_misp,";
+        fproc << "ibs_op_brn_ret,ibs_rip_invalid,ibs_op_brn_fuse,ibs_op_microcode,";
+        // ibs_op_data_2
+        fproc << "ibs_nb_req_src,ibs_nb_req_dst_node,ibs_nb_req_cache_hit_st,";
+        // ibs_op_data_3
+        fproc << "ibs_ld_op,ibs_st_op,ibs_dc_l1_tlb_miss,ibs_dc_l2_tlb_miss,ibs_dc_l1_tlb_hit_2m,ibs_dc_l1_tlb_hit_1g,ibs_dc_l2_tlb_hit_2m,";
+        fproc << "ibs_dc_miss,ibs_dc_miss_acc,ibs_dc_ld_bank_con,ibs_dc_st_bank_con,ibs_dc_st_to_ld_fwd,ibs_dc_st_to_ld_can,";
+        fproc << "ibs_dc_wc_mem_acc,ibs_dc_uc_mem_acc,ibs_dc_locked_op,ibs_dc_no_mab_alloc,ibs_lin_addr_valid,ibs_phy_addr_valid,";
+        fproc << "ibs_dc_l2_tlb_hit_1g,ibs_l2_miss,ibs_sw_pf,ibs_op_mem_width,ibs_op_dc_miss_open_mem_reqs,ibs_dc_miss_lat,ibs_tlb_refill_lat,";
+        // lin and phy address
+        fproc << "ibs_op_phy,ibs_op_lin,";
+        // ibs brs target address
+        fproc << "ibs_branch_target";
+#endif
+    fproc << "\n";
 }
 
 int Mitos_post_process(const char *bin_name, mitos_output *mout)
 {
     int err = 0;
+    fflush(mout->fout_raw); // flush raw samples stream before post processing starts
 
     // Open input/output files
     std::ifstream fraw(mout->fname_raw);
@@ -212,14 +357,18 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     {
         std::cerr << "Mitos: Failed to open Symtab object for " << bin_name << std::endl;
         std::cerr << "Saving raw data (no source/instruction attribution)" << std::endl;
+
+        fraw.close();
+        fproc.close();
+
+
         err = rename(mout->fname_raw, mout->fname_processed);
         if(err)
         {
             std::cerr << "Mitos: Failed to rename raw output to " << mout->fname_processed << std::endl;
         }
 
-        fproc.close();
-        fraw.close();
+
 
         return 1;
     }
@@ -230,11 +379,12 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     unsigned int inst_length = InstructionDecoder::maxInstructionLength;
     Architecture arch = symtab_obj->getArchitecture();
 
-    // Write header for processed samples
-    fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,level,hit_type,op_type,snoop_mode,tlb_access,numa\n";
+    Mitos_write_samples_header(fproc);
 
     //get base (.text) virtual address of the measured process
-    std::ifstream foffset("/u/home/vanecek/sshfs/sv_mitos/build/test3.txt");
+    //std::ifstream foffset("/u/home/vanecek/sshfs/sv_mitos/build/test3.txt");
+    // TODO: Replace line
+    std::ifstream foffset("/tmp/virt_address.txt");
     long long offsetAddr = 0;
     string str_offset;
     if(std::getline(foffset, str_offset).good())
@@ -261,6 +411,8 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
         size_t ip_endpos = line.find(',');
         std::string ip_str = line.substr(0,ip_endpos);
         ip = (Dyninst::Offset)(strtoull(ip_str.c_str(),NULL,0) - offsetAddr);
+        if(tmp_line%4000==0)
+            cout << ip << endl;
         // Parse ip for source line info
         std::vector<SymtabAPI::Statement::Ptr> stats;
         sym_success = symtab_obj->getSourceLines(stats, ip);
@@ -345,9 +497,9 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
 
         tmp_line++;
     }
-
-    fproc.close();
     fraw.close();
+    fproc.close();
+
 
     err = remove(mout->fname_raw);
     if(err)
@@ -358,5 +510,77 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
 
 #endif // USE_DYNINST
 
+    return 0;
+}
+
+
+int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix) {
+    // find exact directory name for mpi_rank 0
+    fs::path path_root{"."};
+    bool first_dir_found = false;
+    std::string path_first_dir{""};
+    for (auto const& dir_entry : std::filesystem::directory_iterator{path_root}) {
+        if (dir_entry.path().u8string().rfind("./" + dir_first_dir_prefix) == 0) {
+            path_first_dir = dir_entry.path().u8string();
+            first_dir_found = true;
+        }
+    }
+    if(first_dir_found) {
+        std::cout << "First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result\n";
+    }else {
+        // error, directory not found
+        return 1;
+    }
+    std::string path_dir_result = "./"+ dir_prefix + "result";
+    // create directories
+    fs::create_directory(path_dir_result);
+    fs::create_directory(path_dir_result + "/data");
+    fs::create_directory(path_dir_result + "/hwdata");
+    fs::create_directory(path_dir_result + "/src");
+    // copy first directory
+    fs::copy(path_first_dir, path_dir_result, fs::copy_options::overwrite_existing | fs::copy_options::recursive);
+    //fs::copy(path_first_dir + "/data", path_dir_result + "/data");
+    //fs::copy(path_first_dir + "/hwdata", path_dir_result + "/hwdata");
+    //fs::copy(path_first_dir + "/src", path_dir_result + "/src");
+    // delete first folder
+    fs::remove_all(path_first_dir);
+
+    std::string path_samples_dest = path_dir_result + "/data/samples.csv";
+    // check if file exist
+    if (fs::exists(path_samples_dest)) {
+        std::ofstream file_samples_out;
+        file_samples_out.open(path_samples_dest, std::ios_base::app);
+        // for other directories, copy samples to dest dir
+        for (auto const& dir_entry : std::filesystem::directory_iterator{path_root})
+        {
+            if (dir_entry.path().u8string().rfind("./"+ dir_prefix) == 0
+            && dir_entry.path().u8string() != path_first_dir
+            && dir_entry.path().u8string() != path_dir_result) {
+                std::cout << "Move Data " << dir_entry.path() << " to Result Folder...\n";
+                // src file
+                std::string path_samples_src = dir_entry.path().u8string() + "/data/samples.csv";
+                if (fs::exists(path_samples_src)) {
+                    // copy data
+                    std::ifstream file_samples_in(path_samples_src);
+                    std::string line;
+                    bool is_first_line = true;
+                    while (std::getline(file_samples_in, line))
+                    {
+                        if (is_first_line){
+                            is_first_line = false;
+                        }else{
+                            file_samples_out << line << "\n";
+                        }
+                    }
+                    file_samples_in.close();
+                    // delete old folder
+                    fs::remove_all(dir_entry.path().u8string());
+                }
+            }
+        } // END LOOP
+        file_samples_out.close();
+    }
+    // TODO Copy Raw samples
+    std::cout << "Merge successfully completed\n";
     return 0;
 }

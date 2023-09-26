@@ -19,6 +19,7 @@ uint64_t thresh;
 
 mitos_output mout;
 std::vector<perf_event_sample> samples;
+pid_t child_pid;
 
 void dump_samples()
 {
@@ -29,8 +30,13 @@ void dump_samples()
 
 void sample_handler(perf_event_sample *sample, void *args)
 {
-
+#if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
+    if (sample->pid == child_pid){
+        samples.push_back(*sample);
+    }
+#else
     samples.push_back(*sample);
+#endif
 
     if(samples.size() >= bufsz)
         dump_samples();
@@ -147,6 +153,9 @@ int main(int argc, char **argv)
     {
         int status;
         wait(&status);
+#if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
+        child_pid = child;
+#endif
 
         int err = Mitos_create_output(&mout, "mitos");
         if(err)
@@ -161,7 +170,9 @@ int main(int argc, char **argv)
             kill(child, SIGKILL);
             return 1;
         }
-
+#if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
+        Mitos_set_pid(child);
+#endif
         Mitos_set_sample_event_period(period);
         Mitos_set_sample_latency_threshold(thresh);
 
@@ -180,7 +191,7 @@ int main(int argc, char **argv)
         dump_samples(); // anything left over
 
         std::cout << "Command completed! Processing samples...\n" << std::endl;
-
+        std::cout << "Bin Name: " << argv[cmdarg] <<"\n";
         err = Mitos_post_process(argv[cmdarg],&mout);
         if(err)
             return 1;

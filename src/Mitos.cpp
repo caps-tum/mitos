@@ -6,6 +6,10 @@
 static procsmpl m_procsmpl;
 static mattr m_mattr;
 
+void Mitos_set_pid(pid_t pid) {
+    m_procsmpl.set_pid(pid);
+}
+
 void Mitos_set_sample_time_frequency(uint64_t p) 
 { 
     m_procsmpl.set_sample_time_frequency(p); 
@@ -35,6 +39,7 @@ void Mitos_end_sampler()
 {
     m_procsmpl.end_sampling(); 
 }
+
 
 void Mitos_add_symbol(const char* n, void *a, size_t s, size_t *dims, unsigned int ndims)
 {

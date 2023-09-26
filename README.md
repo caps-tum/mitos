@@ -35,6 +35,8 @@ Mitos requires:
 
 ## Running
 
+### Mitosrun
+
 1. Find the `mitosrun` command in the `bin` directory in the install
    directory.
 
@@ -71,6 +73,15 @@ Mitos requires:
        -p sample period (default 4000)
        -t sample latency threshold (default 10)
    ```
+
+## IBS Configuration
+1. Configure CMAKE with IBS depending on the chosen executable and configure environment variables if necessary:
+* Mitosrun (with or without OpenMP): IBS_ALL_ON or IBS_THREAD_MIGRATION
+* Mitoshooks with OpenMP: 
+  * IBS_ALL_ON, requires currently Clang due to omp-tools.h dependency
+  * Configure environment variable `OMP_TOOL_LIBRARIES` that points to mitoshooks-library:
+    * OMP_TOOL_LIBRARIES=./../src/libmitoshooks.so
+* Mitoshooks with MPI: IBS_THREAD_MIGRATION
 
 # Authors
 

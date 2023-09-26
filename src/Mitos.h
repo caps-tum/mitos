@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <inttypes.h>
+#include "ibs_types.h"
 
 // #include <bits/pthreadtypes.h>
 
@@ -26,6 +27,7 @@ extern "C" {
 #endif
 
 // Sampler configuration
+void Mitos_set_pid(pid_t pid);
 void Mitos_set_sample_time_frequency(uint64_t p);
 void Mitos_set_sample_event_period(uint64_t p);
 void Mitos_set_sample_latency_threshold(uint64_t t);
@@ -50,7 +52,7 @@ int Mitos_create_output(struct mitos_output *mout, const char *prefix_name);
 int Mitos_pre_process(struct mitos_output *mout);
 int Mitos_write_sample(struct perf_event_sample *s, struct mitos_output *mout);
 int Mitos_post_process(const char *bin_name, struct mitos_output *mout);
-
+int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir);
 #ifdef __cplusplus
 } // extern "C"
 #endif
@@ -75,8 +77,8 @@ struct perf_event_sample
     //struct read_format v;         /* if PERF_SAMPLE_READ */
     //uint64_t   nr;                  /* if PERF_SAMPLE_CALLCHAIN */
     //uint64_t  *ips;                 /* if PERF_SAMPLE_CALLCHAIN */
-    //uint32_t   raw_size;            /* if PERF_SAMPLE_RAW */
-    //char      *raw_data;            /* if PERF_SAMPLE_RAW */
+    uint32_t   raw_size;            /* if PERF_SAMPLE_RAW */
+    char      *raw_data;            /* if PERF_SAMPLE_RAW */
     //uint64_t   bnr;                 /* if PERF_SAMPLE_BRANCH_STACK */
     //struct perf_branch_entry *lbr; /* if PERF_SAMPLE_BRANCH_STACK */
     //uint64_t   abi;                 /* if PERF_SAMPLE_REGS_USER */
@@ -100,6 +102,23 @@ struct perf_event_sample
     const char *mem_lock;
     const char *mem_tlb;
     int numa_node;
+#ifdef USE_IBS_FETCH
+    ibs_fetch_ctl_t ibs_fetch_ctl;
+    uint64_t ibs_fetch_lin;
+    ibs_fetch_phys_addr ibs_fetch_phy;
+    uint64_t ibs_fetch_ext;
+#endif
+#ifdef USE_IBS_OP
+    ibs_op_ctl_t ibs_op_ctl;
+    uint64_t ibs_op_rip;  // IBS Op Logical Address
+    ibs_op_data1_t ibs_op_data_1;
+    ibs_op_data2_t ibs_op_data_2;
+    ibs_op_data3_t ibs_op_data_3;
+    ibs_op_dc_phys_addr_t ibs_op_phy;
+    uint64_t ibs_op_lin;
+    uint64_t ibs_op_brs_target;
+#endif
+
 };
 
 struct mitos_output

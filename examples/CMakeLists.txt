@@ -7,6 +7,7 @@ add_executable(api_test api_test.cpp)
 add_executable(matmul matmul.cpp)
 
 target_link_libraries(api_test mitos)
+target_link_libraries(matmul dl)
 
 if(Dyninst_FOUND)
     include_directories(${DYNINST_INCLUDE_DIR})
@@ -17,3 +18,11 @@ if(MPI_FOUND)
     add_executable(mpi_matmul mpi_matmul.cpp)
     target_link_libraries(mpi_matmul mitos mitoshooks ${MPI_LIBRARIES})
 endif()
+
+if(OpenMP_CXX_FOUND)
+    # env OMP_TOOL_LIBRARIES=$(PWD)/libinit.so
+    # OMP_TOOL_LIBRARIES=./../src/libmitoshooks.so
+    include_directories(./../src)
+    add_executable(omp_example omp_example.cpp)
+    target_link_libraries(omp_example mitos mitoshooks OpenMP::OpenMP_CXX)
+endif ()

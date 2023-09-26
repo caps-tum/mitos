@@ -1,6 +1,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <inttypes.h>
+#include <iostream>
+#include <sstream>
 
 #include "Mitos.h"
 #include "mmap_processor.h"
@@ -63,52 +65,166 @@ int process_single_sample(struct perf_event_sample *pes,
                           sample_handler_fn_t handler_fn,
                           void* handler_fn_args,
                           struct perf_event_mmap_page *mmap_buf, 
-                          size_t pgmsk)
-{
+                          size_t pgmsk) {
     int ret = 0;
 
-    memset(pes,0, sizeof(struct perf_event_sample));
-    
-    if(event_type &(PERF_SAMPLE_IP))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->ip, sizeof(uint64_t));
+    memset(pes, 0, sizeof(struct perf_event_sample));
+
+    if (event_type & (PERF_SAMPLE_IP)) {
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->ip, sizeof(uint64_t));
     }
 
-    if(event_type &(PERF_SAMPLE_TID))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->pid, sizeof(uint32_t));
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->tid, sizeof(uint32_t));
+    if (event_type & (PERF_SAMPLE_TID)) {
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->pid, sizeof(uint32_t));
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->tid, sizeof(uint32_t));
     }
 
-    if(event_type &(PERF_SAMPLE_TIME))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->time, sizeof(uint64_t));
+    if (event_type & (PERF_SAMPLE_TIME)) {
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->time, sizeof(uint64_t));
     }
 
-    if(event_type &(PERF_SAMPLE_ADDR))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->addr, sizeof(uint64_t));
+    if (event_type & (PERF_SAMPLE_ADDR)) {
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->addr, sizeof(uint64_t));
     }
 
-    if(event_type &(PERF_SAMPLE_ID))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->id, sizeof(uint64_t));
+    if (event_type & (PERF_SAMPLE_ID)) {
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->id, sizeof(uint64_t));
     }
 
-    if(event_type &(PERF_SAMPLE_STREAM_ID))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->stream_id, sizeof(uint64_t));
+    if (event_type & (PERF_SAMPLE_STREAM_ID)) {
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->stream_id, sizeof(uint64_t));
     }
 
-    if(event_type &(PERF_SAMPLE_CPU))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->cpu, sizeof(uint32_t));
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->res, sizeof(uint32_t));
+    if (event_type & (PERF_SAMPLE_CPU)) {
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->cpu, sizeof(uint32_t));
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->res, sizeof(uint32_t));
     }
 
-    if(event_type &(PERF_SAMPLE_PERIOD))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->period, sizeof(uint64_t));
+    if (event_type & (PERF_SAMPLE_PERIOD)) {
+        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->period, sizeof(uint64_t));
+    }
+    if (event_type & (PERF_SAMPLE_RAW)) {
+        ret = read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->raw_size, sizeof(uint32_t));
+        if (ret != 0) {
+            //std::cout << "Error Raw Data\n";
+            return ret;
+        }
+//        else if( pes.raw_size > size_hdr) {
+//            std::cout << "Error Size: " << pes.raw_size << " > " << size_hdr << "\n";
+//        }
+        //bytes_read += 4 + pes.raw_size;
+        uint32_t remaining_data = pes->raw_size;
+
+        // skip 4B padding
+        uint32_t temp_data = 0;
+        ret = read_mmap_buffer(mmap_buf, pgmsk, (char *) &temp_data, sizeof(uint32_t)); // skip first 4 bytes
+
+        if (ret != 0) {
+            std::cout << "Error TempData\n";
+            return ret;
+        }
+
+        if (pes->raw_size > 0) {
+            // pes.raw_data = (char *) malloc(pes.raw_size * sizeof(char));
+
+#ifdef USE_IBS_FETCH
+            // 3 64-bit registers + 4B padding (+8B additional control extended register)
+            // skip padding
+            std::stringstream result;
+            result << "Size [" << pes->raw_size << "] \t\t";
+
+            remaining_data -= 4;
+
+
+            int offset = 0;
+            bool print_line = true;
+
+            //uint64_t ibs_fetch_ctl, ibs_fetch_linear, ibs_fetch_physical, ibs_fetch_extended = 0;
+            int ret_val = read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->ibs_fetch_ctl, sizeof(uint64_t));
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->ibs_fetch_lin, sizeof(uint64_t));
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->ibs_fetch_phy, sizeof(uint64_t));
+            remaining_data -= 24;
+            bool extended_exists = remaining_data == 8;
+            if (extended_exists) {
+                // read extended header
+                ret_val |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->ibs_fetch_ext, sizeof(uint64_t));
+            }
+            if (ret != 0) {
+                std::cout << "Error TempDataFetch\n";
+                return ret;
+            }
+#endif
+//                ibs_fetch_ctl_t ibs_fetch_str = pes.ibs_fetch_ctl;
+//                //result << "IbsFetchMaxCnt: " << ibs_fetch_str.reg.ibs_fetch_max_cnt << ", ";
+//                //result << "IbsFetchCnt: " << ibs_fetch_str.reg.ibs_fetch_cnt << ", ";
+//                result << "IbsFetchLat: " << ibs_fetch_str.reg.ibs_fetch_lat << ", ";
+//                // result << "IbsFetchEn: " << (ibs_fetch_str.reg.ibs_fetch_en?"1":"0") << ", ";
+//                result << "Instruction Fetch Valid: " << (ibs_fetch_str.reg.ibs_fetch_val ? "1" : "0") << ", ";
+//                result << "Instruction Fetch Complete: " << (ibs_fetch_str.reg.ibs_fetch_comp ? "1" : "0") << ", ";
+//                result << "Instr. Fetch miss: " << (ibs_fetch_str.reg.ibs_ic_miss ? "1" : "0") << ", ";
+//                result << "IbsPhyAddr Valid: " << (ibs_fetch_str.reg.ibs_phy_addr_valid ? "1" : "0") << ", ";
+//                std::string ibs_l1_tlb_pg_size = "error";
+//                switch (ibs_fetch_str.reg.ibs_l1_tlb_pg_sz) {
+//                    case 0:
+//                        ibs_l1_tlb_pg_size = "4KB";
+//                        break;
+//                    case 1:
+//                        ibs_l1_tlb_pg_size = "2MB";
+//                        break;
+//                    case 2:
+//                        ibs_l1_tlb_pg_size = "1GB";
+//                        break;
+//                    default:
+//                        break;
+//                }
+//                result << "IbsL1TlbPgSz: " << ibs_l1_tlb_pg_size << ", ";
+//                result << "IbsTlbMiss Instr. Cache L1: " << (ibs_fetch_str.reg.ibs_l1_tlb_miss ? "1" : "0") << ", ";
+//                result << "IbsL2TlbMiss Instr. Cache L2: " << (ibs_fetch_str.reg.ibs_l2_tlb_miss ? "1" : "0") << ", ";
+//                result << "IbsRandEn (Random tagging): " << (ibs_fetch_str.reg.ibs_rand_en ? "1" : "0") << ", ";
+//                result << "IbsFetchL2 Miss: " << (ibs_fetch_str.reg.ibs_fetch_l2_miss ? "1" : "0") << ", ";
+//                result << std::hex << pes.ibs_fetch_ctl.val << "\t" << pes.ibs_fetch_lin << "\t" << pes.ibs_fetch_phy.reg.ibs_fetch_phy_addr
+//                       << "\t" << ((extended_exists) ? (pes.ibs_fetch_ext) : 0) << std::endl;
+            // std::cout << result.str();
+#ifdef USE_IBS_OP
+            // read standard register content
+            int ret_val = read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_ctl, sizeof(uint64_t));
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_rip, sizeof(uint64_t));
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_data_1, sizeof(uint64_t));
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_data_2, sizeof(uint64_t));
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_data_3, sizeof(uint64_t));
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_lin, sizeof(uint64_t));
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_phy, sizeof(uint64_t));
+            //remaining_data = remaining_data -  4 - 56; // padding + 7 registers
+
+            //if (remaining_data >= 8) {
+            // read brs register
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_brs_target, sizeof(uint64_t));
+            //remaining_data -= 8;
+            //}
+            //if(remaining_data >= 8) {
+            // op_data_4 register found
+            ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_brs_target, sizeof(uint64_t));
+            //remaining_data -= 8;
+            //}
+//                if (remaining_data != 0) {
+//                    std::cout << remaining_data << ", " << pes.raw_size << ", Hdr Size: " << size_hdr << std::endl;
+//                }
+            if (ret != 0) {
+                std::cout << "Error ibs_op\n";
+                return ret;
+            }
+
+//        }else {
+//            std::cout << "Error Size Output: " << pes->raw_size << std::endl;
+//        }
+        //int firstVal = (int) (unsigned char) pes.raw_data[0];
+        //std::cout << "Raw Data: " << pes.raw_size << ", " << firstVal << std::endl;
+//    }else {
+//        //std::cout << "Error Size is Zero: " << pes.raw_size << std::endl;
+//    }
+
+#endif
+        }
     }
 
     /*

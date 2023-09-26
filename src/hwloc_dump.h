@@ -1,5 +1,4 @@
 #include <hwloc.h>
-
 int dump_hardware_xml(const char *filename)
 {
     int err;
