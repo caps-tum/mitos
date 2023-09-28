@@ -14,9 +14,9 @@ option(MITOSHOOKS_OPEN_MP "Enable Mitoshooks OpenMP-Routing" OFF)
 set_property(CACHE IBS_TYPE PROPERTY STRINGS
         "OFF" "IBS_FETCH" "IBS_OP")
 
-set(IBS_SAMPLING_MODE "ALL_ON" "THREAD_MIGRATION"  CACHE STRING "ALL_ON: Run sampling on all cores; THREAD_MIGRATION: Run single sampler that migrates core after detecting a core migration; ")
+set(IBS_SAMPLING_MODE "ALL_ON" "THREAD_MIGRATION"  CACHE STRING "ALL_ON: Run sampling on all cores; THREAD_MIGRATION: Run single sampler that migrates core after detecting a core migration")
 set_property(CACHE IBS_SAMPLING_MODE PROPERTY STRINGS
-        "ALL_ON" "ALL_SELECTIVE_ON" "THREAD_MIGRATION")
+        "ALL_ON" "THREAD_MIGRATION")
 
 if ((IBS_TYPE STREQUAL "IBS_FETCH") OR (IBS_TYPE STREQUAL "IBS_OP"))
     # define sampling mode for IBS

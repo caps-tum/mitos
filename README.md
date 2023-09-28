@@ -76,12 +76,33 @@ Mitos requires:
 
 ## IBS Configuration
 1. Configure CMAKE with IBS depending on the chosen executable and configure environment variables if necessary:
-* Mitosrun (with or without OpenMP): IBS_ALL_ON or IBS_THREAD_MIGRATION
-* Mitoshooks with OpenMP: 
-  * IBS_ALL_ON, requires currently Clang due to omp-tools.h dependency
-  * Configure environment variable `OMP_TOOL_LIBRARIES` that points to mitoshooks-library:
-    * OMP_TOOL_LIBRARIES=./../src/libmitoshooks.so
-* Mitoshooks with MPI: IBS_THREAD_MIGRATION
+* `IBS_TYPE` 
+  * Use IBS_FETCH or IBS_OP depending on the profiling use case (requires AMD processor with IBS support)
+  * IBS is not supported on Intel processors, therefore set variable to OFF
+* `IBS_SAMPLING_MODE`
+  * Mitosrun (with or without OpenMP): `IBS_ALL_ON` or `IBS_THREAD_MIGRATION`
+  * Mitoshooks with OpenMP: 
+    * `IBS_THREAD_MIGRATION`, requires Clang due to omp-tools.h dependency
+    * Enables OpenMP code by setting `MITOSHOOKS_OPEN_MP` CMake variable to `ON`
+    * Configure environment variable `OMP_TOOL_LIBRARIES` that points to mitoshooks-library:
+      * OMP_TOOL_LIBRARIES=./../src/libmitoshooks.so
+  * Mitoshooks with MPI: `IBS_THREAD_MIGRATION`
+  * NOTE: `IBS_ALL_ON` might also work, but this sampling method is not recommended.
+
+## Mitoshooks with OpenMP Usage
+1. Requirements
+   * Compiler with OMPT support such as Clang (OpenMP feature since version 5.0)
+2. CMake Configuration
+   * OpenMP found
+   * `MITOSHOOKS_OPEN_MP`: ON
+3. Compilation
+   * Compilation of Mitoshooks library
+   * Compilation of OpenMP-application
+4. Execution
+   * Configuration of environment variable `OMP_TOOL_LIBRARIES` that points to mitoshooks-library:
+       * e.g. for omp_example.cpp: OMP_TOOL_LIBRARIES=./../src/libmitoshooks.so
+   * Launch OpenMP-application
+     * ./omp_example
 
 # Authors
 
