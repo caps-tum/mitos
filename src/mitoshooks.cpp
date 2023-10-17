@@ -186,7 +186,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
 #else
 #error "SYS_gettid unavailable on this system"
     exit(1);
-#endif
+#endif // SYS_gettid
     if (tid_omp_first == -1) {
         tid_omp_first = tid;
     }
@@ -217,7 +217,7 @@ static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     pid_t tid = syscall(SYS_gettid);
 #else
 #error "SYS_gettid unavailable on this system"
-#endif
+#endif // SYS_gettid
 //     printf("End Thread OMP: %u, tid: %u, omp_tid: %lu\n",getpid(), tid, tid_omp);
     Mitos_end_sampler();
     // /proc/self/exe
@@ -288,4 +288,4 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
 }
 #endif
 
-#endif
+#endif // USE_OPEN_MP

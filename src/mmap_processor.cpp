@@ -153,7 +153,7 @@ int process_single_sample(struct perf_event_sample *pes,
                 std::cout << "Error TempDataFetch\n";
                 return ret;
             }
-#endif
+#endif // USE_IBS_FETCH
 //                ibs_fetch_ctl_t ibs_fetch_str = pes.ibs_fetch_ctl;
 //                //result << "IbsFetchMaxCnt: " << ibs_fetch_str.reg.ibs_fetch_max_cnt << ", ";
 //                //result << "IbsFetchCnt: " << ibs_fetch_str.reg.ibs_fetch_cnt << ", ";
@@ -223,7 +223,7 @@ int process_single_sample(struct perf_event_sample *pes,
 //        //std::cout << "Error Size is Zero: " << pes.raw_size << std::endl;
 //    }
 
-#endif
+#endif // USE_IBS_OP
         }
     }
 

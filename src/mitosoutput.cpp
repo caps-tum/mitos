@@ -25,7 +25,7 @@ namespace fs = std::filesystem;
 #    include <boost/filesystem.hpp>
      namespace fs = boost::filesystem;
 #  endif
-#endif
+#endif // __has_include
 
 #ifdef USE_DYNINST
 //#include <LineInformation.h> // symtabAPI
@@ -215,7 +215,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
                 sample->ibs_fetch_phy.reg.ibs_fetch_phy_addr,
                 sample->ibs_fetch_ext
         );
-#endif
+#endif // USE_IBS_FETCH
 #ifdef USE_IBS_OP
         // op_ctl
         fprintf(mout->fout_raw,
@@ -292,7 +292,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
                 sample->ibs_op_lin,
                 sample->ibs_op_brs_target
         );
-#endif
+#endif // USE_IBS_OP
     fprintf(mout->fout_raw, "\n");
     return 0;
 }
@@ -304,7 +304,7 @@ void Mitos_write_samples_header(std::ofstream& fproc) {
 #ifdef USE_IBS_FETCH
     fproc << ",ibs_fetch_max_cnt,ibs_fetch_cnt,ibs_fetch_lat,ibs_fetch_en,ibs_fetch_val,ibs_fetch_comp,ibs_ic_miss,ibs_phy_addr_valid,ibs_l1_tlb_pg_sz,ibs_l1_tlb_miss,ibs_l2_tlb_miss,ibs_rand_en,ibs_fetch_l2_miss,";
     fproc << "ibs_fetch_lin_addr,ibs_fetch_phy_addr,ibs_fetch_control_extended";
-#endif
+#endif // USE_IBS_FETCH
 #ifdef USE_IBS_OP
     fproc << ",ibs_op_max_cnt,ibs_op_en,ibs_op_val,ibs_op_cnt_ctl,ibs_op_max_cnt_upper,ibs_op_cur_cnt,";
         fproc << "ibs_op_rip,";
@@ -322,7 +322,7 @@ void Mitos_write_samples_header(std::ofstream& fproc) {
         fproc << "ibs_op_phy,ibs_op_lin,";
         // ibs brs target address
         fproc << "ibs_branch_target";
-#endif
+#endif // USE_IBS_OP
     fproc << "\n";
 }
 
@@ -347,7 +347,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     fraw.close();
 
     return 0;
-#else
+#else // NO DYNINST
     // Open Symtab object and code source object
     SymtabAPI::Symtab *symtab_obj;
     SymtabCodeSource *symtab_code_src;

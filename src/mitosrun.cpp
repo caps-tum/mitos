@@ -34,9 +34,9 @@ void sample_handler(perf_event_sample *sample, void *args)
     if (sample->pid == child_pid){
         samples.push_back(*sample);
     }
-#else
+#else // PEBS (Intel)
     samples.push_back(*sample);
-#endif
+#endif // USE_IBS_FETCH || USE_IBS_OP
 
     if(samples.size() >= bufsz)
         dump_samples();
@@ -155,7 +155,7 @@ int main(int argc, char **argv)
         wait(&status);
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
         child_pid = child;
-#endif
+#endif // USE_IBS_FETCH || USE_IBS_OP
 
         int err = Mitos_create_output(&mout, "mitos");
         if(err)
@@ -172,7 +172,7 @@ int main(int argc, char **argv)
         }
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
         Mitos_set_pid(child);
-#endif
+#endif // USE_IBS_FETCH || USE_IBS_OP
         Mitos_set_sample_event_period(period);
         Mitos_set_sample_latency_threshold(thresh);
 

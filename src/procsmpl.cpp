@@ -61,9 +61,9 @@ int perf_event_open(struct perf_event_attr *attr,
 {
 #if  defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
     return syscall(__NR_perf_event_open, attr, -1, cpu, group_fd, flags); // for IBS: monitor all processes, single process monitoring unavailable
-#else
+#else // PEBS (Intel)
     return syscall(__NR_perf_event_open, attr, pid, cpu, group_fd, flags);
-#endif
+#endif // USE_IBS_FETCH || USE_IBS_OP
 }
 
 void update_sampling_events() {
@@ -139,7 +139,7 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
         tsmp.counter_update = 0;
         update_sampling_events();
     }
-#endif
+#endif // USE_IBS_THREAD_MIGRATION
     double t_end = ((double) clock())/ CLOCKS_PER_SEC;
     //float seconds = (float)(time_process_end - start) / CLOCKS_PER_SEC;
     //float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
@@ -173,7 +173,7 @@ void procsmpl::init_attrs()
 #if  defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
     procsmpl::init_attrs_ibs();
     return;
-#endif
+#endif // USE_IBS_FETCH || USE_IBS_OP
     num_attrs = 2;
     attrs = (struct perf_event_attr*)malloc(num_attrs*sizeof(struct perf_event_attr));
     num_attrs = 1;
@@ -261,14 +261,14 @@ void init_attr_ibs(struct perf_event_attr* attr, __u64 sample_period) {
 #ifdef USE_IBS_FETCH
     attr->type = 8; // IBS_Fetch
     attr->config = (1ULL<<57);
-#endif
+#endif // USE_IBS_FETCH
 #ifdef USE_IBS_OP
     attr->type = 9;
             // Setting this bit in config enables sampling every sample_period ops.
             // Leaving it unset will take an IBS sample every sample_period cycles
             // https://github.com/jlgreathouse/AMD_IBS_Toolkit/blob/master/ibs_with_perf_events.txt#L151
             attr->config = 0; // (1ULL<<19);
-#endif
+#endif // USE_IBS_OP
     attr->read_format = 0;
     attr->sample_type = PERF_SAMPLE_RAW
                        | PERF_SAMPLE_CPU
@@ -305,7 +305,7 @@ void procsmpl::init_attrs_ibs() {
     num_attrs = get_num_cores();
     std::cout << "Amount CPUs: " << num_attrs << std::endl;
 
-#endif
+#endif // USE_IBS_ALL_ON || USE_IBS_THREAD_MIGRATION
     attrs = (struct perf_event_attr*)malloc(num_attrs*sizeof(struct perf_event_attr));
     for (int i = 0; i< num_attrs; i++) {
         std::cout << "Init perf_event_attr " << i << std::endl;
@@ -315,7 +315,7 @@ void procsmpl::init_attrs_ibs() {
         attrs[i] = attr;
     }
 }
-#endif
+#endif // USE_IBS_FETCH || USE_IBS_OP
 
 int procsmpl::begin_sampling()
 {
@@ -351,7 +351,7 @@ int threadsmpl::init(procsmpl *parent)
     ret = init_thread_sighandler();
     if(ret)
         return ret;
-#endif
+#endif // USE_IBS_ALL_ON
     // Success
     ready = 1;
 
@@ -372,7 +372,7 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
             events[i].attr = attrs[i];
         }
         return 0;
-    #endif
+    #endif // USE_IBS_THREAD_MIGRATION
     #ifdef USE_IBS_ALL_ON
         // Case IBS USE_IBS_ALL_ON
         for(int i=0; i < num_events; i++)
@@ -405,8 +405,8 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
             }
         }
         return 0;
-    #endif
-#else
+    #endif // USE_IBS_ALL_ON
+#else // PEBS (Intel)
     int i;
 
     num_events = num_attrs;
@@ -442,7 +442,7 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
         }
     }
     return 0;
-#endif
+#endif // USE_IBS_FETCH || USE_IBS_OP
 }
 
 int threadsmpl::init_thread_sighandler()
@@ -530,7 +530,7 @@ int threadsmpl::begin_sampling()
     #if defined( USE_IBS_THREAD_MIGRATION)
         update_sampling_events();
         return 0;
-    #endif
+    #endif // USE_IBS_THREAD_MIGRATION
     #ifdef USE_IBS_ALL_ON
         for (i = 0; i <num_events; i++) {
             ret = ioctl(events[i].fd, PERF_EVENT_IOC_RESET, 0);
@@ -544,8 +544,8 @@ int threadsmpl::begin_sampling()
             events[i].running = 1;
         }
         return ret;
-    #endif
-#else
+    #endif // USE_IBS_ALL_ON
+#else // PEBS (Intel)
     ret = ioctl(events[0].fd, PERF_EVENT_IOC_RESET, 0);
     if(ret)
         perror("ioctl");
@@ -555,7 +555,7 @@ int threadsmpl::begin_sampling()
         perror("ioctl");
 
     return ret;
-#endif
+#endif // USE_IBS_FETCH ||  USE_IBS_OP
 }
 
 void threadsmpl::end_sampling()
@@ -574,12 +574,12 @@ void threadsmpl::end_sampling()
         for (i = 0; i < num_events; i++) {
             tsmp.disable_event(i);
         }
-    #endif
-#else
+    #endif  // USE_IBS_ALL_ON || USE_IBS_THREAD_MIGRATION
+#else // PEBS (Intel)
     ret = ioctl(events[0].fd, PERF_EVENT_IOC_DISABLE, 0);
     if(ret)
         perror("ioctl");
-#endif
+#endif // USE_IBS_FETCH ||  USE_IBS_OP
 
 
     for(i=0; i<num_events; i++)
@@ -590,7 +590,7 @@ void threadsmpl::end_sampling()
             if (events[i].running == 0) {
                 continue;
             }
-#endif
+#endif // USE_IBS_FETCH ||  USE_IBS_OP
             process_sample_buffer(&pes,
                               events[i].attr.type,
                               proc_parent->handler_fn,
