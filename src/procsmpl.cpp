@@ -419,9 +419,7 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
         events[i].attr = attrs[i];
 
         // Create attr according to sample mode
-
-
-        events[i].fd = perf_event_open(&events[i].attr, gettid(), -1, events[0].fd, 0);
+        events[i].fd = perf_event_open(&events[i].attr, tsmp.proc_parent->target_pid, -1, events[0].fd, 0);
         std::cout << "i: " << i << ", fd: "<< events[i].fd << "\n";
         //fprintf(stderr, "i: %d : thread: %d : events[0].fd: %d : returned %d\n", i, gettid(), events[0].fd, errno);
 
@@ -608,7 +606,7 @@ int threadsmpl::enable_event(int event_id) {
         //std::cout << "Enable event for " << event_id << std::endl;
         clock_t start = clock();
         events[event_id].fd = -1;
-        events[event_id].fd = perf_event_open(&events[event_id].attr, gettid(), event_id, events[event_id].fd, 0);
+        events[event_id].fd = perf_event_open(&events[event_id].attr, tsmp.proc_parent->target_pid, event_id, events[event_id].fd, 0);
         if(events[event_id].fd == -1)
         {
             perror("perf_event_open");

@@ -170,9 +170,7 @@ int main(int argc, char **argv)
             kill(child, SIGKILL);
             return 1;
         }
-#if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
         Mitos_set_pid(child);
-#endif // USE_IBS_FETCH || USE_IBS_OP
         Mitos_set_sample_event_period(period);
         Mitos_set_sample_latency_threshold(thresh);
 
