@@ -156,7 +156,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
         return 1;
 
     Mitos_resolve_symbol(sample);
-
+  
     fprintf(mout->fout_raw,
             "%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu,%s,%s,%s,%s,%s,%d",
             sample->ip,
@@ -334,7 +334,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     // Open input/output files
     std::ifstream fraw(mout->fname_raw);
     std::ofstream fproc(mout->fname_processed);
-
+    
 #ifndef USE_DYNINST
     // No Dyninst, no post-processing
     err = rename(mout->fname_raw, mout->fname_processed);
@@ -351,7 +351,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     // Open Symtab object and code source object
     SymtabAPI::Symtab *symtab_obj;
     SymtabCodeSource *symtab_code_src;
-
+    
     int sym_success = SymtabAPI::Symtab::openFile(symtab_obj,bin_name);
     if(!sym_success)
     {
@@ -399,6 +399,8 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     size_t ip_endpos;
     std::string line, ip_str;
     int tmp_line = 0;
+    LOG_MEDIUM("Mitos_post_process, reading raw samples...");
+
     while(std::getline(fraw, line).good())
     {
         // Unknown values
@@ -487,7 +489,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
                     bytes << getReadSize(inst);
             }
         }
-
+        LOG_HIGH("Mitos_post_process, writing out the samples...");
         // Write out the sample
         fproc << (source.empty()            ? "??" : source             ) << ","
               << (line_num.str().empty()    ? "??" : line_num.str()     ) << ","

@@ -23,6 +23,7 @@ pid_t child_pid;
 
 void dump_samples()
 {
+    LOG_MEDIUM("dump_samples, samples.size(): " << samples.size());
     for(size_t i=0; i<samples.size(); i++)
         Mitos_write_sample(&samples.at(i), &mout);
     samples.clear();
@@ -35,6 +36,7 @@ void sample_handler(perf_event_sample *sample, void *args)
         samples.push_back(*sample);
     }
 #else // PEBS (Intel)
+    LOG_HIGH("sample_handler, sample->sample_id: " << sample->sample_id);
     samples.push_back(*sample);
 #endif // USE_IBS_FETCH || USE_IBS_OP
 
@@ -171,6 +173,7 @@ int main(int argc, char **argv)
             return 1;
         }
         Mitos_set_pid(child);
+        LOG_MEDIUM("Mitos_set_pid, pid: " << child);
         Mitos_set_sample_event_period(period);
         Mitos_set_sample_latency_threshold(thresh);
 

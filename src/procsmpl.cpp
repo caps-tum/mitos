@@ -347,11 +347,9 @@ int threadsmpl::init(procsmpl *parent)
     ret = init_perf_events(proc_parent->attrs, proc_parent->num_attrs, proc_parent->mmap_size);
     if(ret)
         return ret;
-#ifdef USE_IBS_ALL_ON
     ret = init_thread_sighandler();
     if(ret)
         return ret;
-#endif // USE_IBS_ALL_ON
     // Success
     ready = 1;
 
@@ -413,12 +411,13 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
     events = (struct perf_event_container*)malloc(num_events*sizeof(struct perf_event_container));
 
     events[0].fd = -1;
-    
+    LOG_HIGH("init_perf_events, num_events: " << num_events);
     for(i=0; i<num_events; i++)
     {
         events[i].attr = attrs[i];
 
         // Create attr according to sample mode
+        LOG_MEDIUM("init_perf_events, tsmp.proc_parent->target_pid: " << tsmp.proc_parent->target_pid);
         events[i].fd = perf_event_open(&events[i].attr, tsmp.proc_parent->target_pid, -1, events[0].fd, 0);
         std::cout << "i: " << i << ", fd: "<< events[i].fd << "\n";
         //fprintf(stderr, "i: %d : thread: %d : events[0].fd: %d : returned %d\n", i, gettid(), events[0].fd, errno);

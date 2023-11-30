@@ -10,6 +10,22 @@
 
 // #include <bits/pthreadtypes.h>
 
+
+// Define verbosity levels
+#define VERBOSE_LOW 1
+#define VERBOSE_MEDIUM 2
+#define VERBOSE_HIGH 3
+
+// Set the current verbosity level (change this value to adjust verbosity)
+#define CURRENT_VERBOSITY VERBOSE_MEDIUM
+
+
+// Verbose output macros
+#define LOG_LOW(message) do { if (CURRENT_VERBOSITY >= VERBOSE_LOW) std::cout << "[LOW] " << message << std::endl; } while(0)
+#define LOG_MEDIUM(message) do { if (CURRENT_VERBOSITY >= VERBOSE_MEDIUM) std::cout << "[MEDIUM] " << message << std::endl; } while(0)
+#define LOG_HIGH(message) do { if (CURRENT_VERBOSITY >= VERBOSE_HIGH) std::cout << "[HIGH] " << message << std::endl; } while(0)
+
+
 struct mem_symbol;
 struct perf_event_sample;
 struct mitos_output;
