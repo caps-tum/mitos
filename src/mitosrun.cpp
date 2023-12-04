@@ -21,6 +21,7 @@ mitos_output mout;
 std::vector<perf_event_sample> samples;
 pid_t child_pid;
 
+/* Helper function for writing samples.*/
 void dump_samples()
 {
     LOG_MEDIUM("dump_samples, samples.size(): " << samples.size());
@@ -29,6 +30,7 @@ void dump_samples()
     samples.clear();
 }
 
+/*Write samples information in the output file.*/
 void sample_handler(perf_event_sample *sample, void *args)
 {
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
@@ -44,6 +46,7 @@ void sample_handler(perf_event_sample *sample, void *args)
         dump_samples();
 }
 
+/* Prints usage information.*/
 void usage(char **argv)
 {
     std::cerr << "Usage:" << std::endl;
@@ -57,6 +60,7 @@ void usage(char **argv)
     std::cerr << "    [args]: command arguments" << std::endl;
 }
 
+/* Sets default values for the sampler.*/
 void set_defaults()
 {
     bufsz = DEFAULT_BUFSZ;
@@ -65,6 +69,7 @@ void set_defaults()
     mout.dname_srcdir_orig = "";
 }
 
+/* Parses command line arguments.*/
 int parse_args(int argc, char **argv)
 {
     set_defaults();
@@ -97,6 +102,7 @@ int parse_args(int argc, char **argv)
     return 0;
 }
 
+/* Finds the index of the command to execute.*/
 int findCmdArgId(int argc, char **argv)
 {
     // case 1: argv[0] -f1000 cmd
