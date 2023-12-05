@@ -17,8 +17,9 @@
 #define VERBOSE_HIGH 3
 
 // Set the current verbosity level (change this value to adjust verbosity)
-#define CURRENT_VERBOSITY VERBOSE_MEDIUM
+#define CURRENT_VERBOSITY verbosity
 
+extern uint32_t verbosity;
 
 // Verbose output macros
 #define LOG_LOW(message) do { if (CURRENT_VERBOSITY >= VERBOSE_LOW) std::cout << "[LOW] " << message << std::endl; } while(0)

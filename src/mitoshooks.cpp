@@ -18,6 +18,8 @@
 #define MAX_THREADS 512
 #define DEFAULT_PERIOD      4000
 
+uint32_t verbosity = VERBOSE_LOW;
+
 struct func_args
 {
     void *(*func)(void*);
