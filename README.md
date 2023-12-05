@@ -16,7 +16,7 @@ Mitos requires:
   sampling.  This originated in the 3.10 Linux kernel, but is backported
   to some versions of [RHEL6.6](https://www.redhat.com/promo/Red_Hat_Enterprise_Linux6/).
 
-* [Dyninst](http://www.dyninst.org) version 8.2 or higher.
+* [Dyninst](http://www.dyninst.org) version 12.3.0 or higher.
 
 * [hwloc](http://www.open-mpi.org/projects/hwloc/)
 
@@ -26,7 +26,7 @@ Mitos requires:
    `CMAKE_PREFIX_PATH` environment variable.
 
 2. Run the following commands from the root of the MemAxes source:
-   ```
+   ```bash
    mkdir build && cd build
    cmake -DCMAKE_INSTALL_PREFIX=/path/to/install/location ..
    make
@@ -40,10 +40,17 @@ Mitos requires:
 1. Find the `mitosrun` command in the `bin` directory in the install
    directory.
 
-2. Run any binary with `mitosrun` like this to generate a folder of
+2. Make sure that the path to the installation location of `mitos` and `Dyninst` is added to the `LD_LIBRARY_PATH`. For example:
+
+   ```bash
+   export LD_LIBRARY_PATH=/path/to/mitos/install/location/lib/
+   export LD_LIBRARY_PATH=/path/to/dyninst/lib/:$LD_LIBRARY_PATH
+   ```
+
+3. Run any binary with `mitosrun` like this to generate a folder of
    mitos output data. For example:
 
-   ```
+   ```bash
    mitosrun ./examples/matmul
    ```
 
@@ -51,7 +58,7 @@ Mitos requires:
    called mitos_###, where ### is the number of seconds since the
    epoch. The folder will contain:
 
-   ```
+   ```bash
    mitos_###/
       data/
          samples.csv
@@ -67,18 +74,22 @@ Mitos requires:
 
    `mitosrun` can also be fine-tuned with the following parameters:
 
-   ```
+   ```bash
    [options]:
        -b sample buffer size (default 4096)
        -p sample period (default 4000)
        -t sample latency threshold (default 10)
+       -s top folder of source code to copy
+       -v verbosity level (1(default) | 2 | 3)
    ```
 
-## IBS Configuration
-1. Configure CMAKE with IBS depending on the chosen executable and configure environment variables if necessary:
+   Verbosity level can be toggled from 1 to 3 (1 being the default) to generate helpful runtime outputs.
+
+## IBS (AMD) Configuration
+The default installation of `mitos` will be configured for Intel based Precise Event Based Sampling (PEBS). Additionally, `mitos` supports AMD based Instruction Based Sampling (IBS). Configure CMAKE with IBS depending on the chosen executable and configure environment variables if necessary:
 * `IBS_TYPE` 
   * Use IBS_FETCH or IBS_OP depending on the profiling use case (requires AMD processor with IBS support)
-  * IBS is not supported on Intel processors, therefore set variable to OFF
+  * IBS is not supported on Intel processors. By default, the variable is set to OFF.
 * `IBS_SAMPLING_MODE`
   * Mitosrun (with or without OpenMP): `IBS_ALL_ON` or `IBS_THREAD_MIGRATION`
   * Mitoshooks with OpenMP: 
