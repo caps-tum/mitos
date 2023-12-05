@@ -57,7 +57,7 @@ void usage(char **argv)
     std::cerr << "        -p sample period (default 4000)" << std::endl;
     std::cerr << "        -t sample latency threshold (default 10)" << std::endl;
     std::cerr << "        -s top folder of source code to copy" << std::endl;
-    std::cerr << "        -v verbosity level (1 | 2(default) | 3)" << std::endl;
+    std::cerr << "        -v verbosity level (1(default) | 2 | 3)" << std::endl;
     std::cerr << "    <cmd>: command to sample on (required)" << std::endl;
     std::cerr << "    [args]: command arguments" << std::endl;
 }
