@@ -12,7 +12,6 @@
 size_t bufsz;
 uint64_t period;
 uint64_t thresh;
-uint32_t verbosity;
 
 #define DEFAULT_BUFSZ       4096
 #define DEFAULT_THRESH      10
@@ -57,7 +56,6 @@ void usage(char **argv)
     std::cerr << "        -p sample period (default 4000)" << std::endl;
     std::cerr << "        -t sample latency threshold (default 10)" << std::endl;
     std::cerr << "        -s top folder of source code to copy" << std::endl;
-    std::cerr << "        -v verbosity level (1(default) | 2 | 3)" << std::endl;
     std::cerr << "    <cmd>: command to sample on (required)" << std::endl;
     std::cerr << "    [args]: command arguments" << std::endl;
 }
@@ -65,7 +63,6 @@ void usage(char **argv)
 /* Sets default values for the sampler.*/
 void set_defaults()
 {
-    verbosity = VERBOSE_LOW;
     bufsz = DEFAULT_BUFSZ;
     period = DEFAULT_PERIOD;
     thresh = DEFAULT_THRESH;
@@ -93,9 +90,6 @@ int parse_args(int argc, char **argv)
                 break;
             case 's':
                 mout.dname_srcdir_orig = optarg;
-                break;
-            case 'v':
-                verbosity = atoi(optarg);
                 break;
             case '?':
                 usage(argv);

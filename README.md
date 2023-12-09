@@ -80,10 +80,7 @@ Mitos requires:
        -p sample period (default 4000)
        -t sample latency threshold (default 10)
        -s top folder of source code to copy
-       -v verbosity level (1(default) | 2 | 3)
    ```
-
-   Verbosity level can be toggled from 1 to 3 (1 being the default) to generate helpful runtime outputs.
 
 ## IBS (AMD) Configuration
 The default installation of `mitos` will be configured for Intel based Precise Event Based Sampling (PEBS). Additionally, `mitos` supports AMD based Instruction Based Sampling (IBS). Configure CMAKE with IBS depending on the chosen executable and configure environment variables if necessary:
