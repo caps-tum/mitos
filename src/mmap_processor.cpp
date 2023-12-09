@@ -275,7 +275,7 @@ int process_sample_buffer(struct perf_event_sample *pes,
         ret = read_mmap_buffer(mmap_buf, pgmsk, (char*)&ehdr, sizeof(ehdr));
         if(ret)
             return 0; // no more samples
-        LOG_HIGH("process_sample_buffer, ehdr.type: " << ehdr.type);
+        //LOG_HIGH("process_sample_buffer, ehdr.type: " << ehdr.type);
         switch(ehdr.type) 
         {
             case PERF_RECORD_SAMPLE:

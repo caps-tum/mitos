@@ -399,7 +399,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     size_t ip_endpos;
     std::string line, ip_str;
     int tmp_line = 0;
-    LOG_MEDIUM("Mitos_post_process, reading raw samples...");
+    LOG_MEDIUM("mitosoutput.cpp:Mitos_post_process(), reading raw samples...");
 
     while(std::getline(fraw, line).good())
     {
@@ -414,7 +414,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
         std::string ip_str = line.substr(0,ip_endpos);
         ip = (Dyninst::Offset)(strtoull(ip_str.c_str(),NULL,0) - offsetAddr);
         if(tmp_line%4000==0)
-            cout << ip << endl;
+            cout << "ip: " << ip <<"\n";
         // Parse ip for source line info
         std::vector<SymtabAPI::Statement::Ptr> stats;
         sym_success = symtab_obj->getSourceLines(stats, ip);
@@ -489,7 +489,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
                     bytes << getReadSize(inst);
             }
         }
-        LOG_HIGH("Mitos_post_process, writing out the samples...");
+        LOG_HIGH("mitosoutput.cpp:Mitos_post_process(), writing out sample no. " << tmp_line + 1);
         // Write out the sample
         fproc << (source.empty()            ? "??" : source             ) << ","
               << (line_num.str().empty()    ? "??" : line_num.str()     ) << ","

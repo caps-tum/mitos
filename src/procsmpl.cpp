@@ -379,7 +379,7 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
             // initailize one event for each core
             events[i].fd = -1;
             events[i].attr = attrs[i];
-            //std::cout << "Init Event " << i << "\n";
+            LOG_HIGH("procsmpl.cpp:init_perf_events(), Init Event " << i);
             // Create attr according to sample mode
             // defines which core is monitored by this event
             events[i].fd = perf_event_open(&events[i].attr, gettid(), i, events[i].fd, 0);
@@ -411,16 +411,15 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
     events = (struct perf_event_container*)malloc(num_events*sizeof(struct perf_event_container));
 
     events[0].fd = -1;
-    LOG_HIGH("init_perf_events, num_events: " << num_events);
+    LOG_HIGH("procsmpl.cpp:init_perf_events(), Total " << num_events << " event(s)");
     for(i=0; i<num_events; i++)
     {
         events[i].attr = attrs[i];
 
         // Create attr according to sample mode
-        LOG_MEDIUM("init_perf_events, tsmp.proc_parent->target_pid: " << tsmp.proc_parent->target_pid);
+        LOG_MEDIUM("procsmpl.cpp:init_perf_events(), tsmp.proc_parent->target_pid: " << tsmp.proc_parent->target_pid);
         events[i].fd = perf_event_open(&events[i].attr, tsmp.proc_parent->target_pid, -1, events[0].fd, 0);
-        std::cout << "i: " << i << ", fd: "<< events[i].fd << "\n";
-        //fprintf(stderr, "i: %d : thread: %d : events[0].fd: %d : returned %d\n", i, gettid(), events[0].fd, errno);
+        std::cout << "event no.(i): " << i << ", file descriptor(fd): "<< events[i].fd << "\n";
 
         if(events[i].fd == -1)
         {
@@ -602,17 +601,17 @@ void threadsmpl::end_sampling()
 
 int threadsmpl::enable_event(int event_id) {
     if (!events[event_id].running) {
-        //std::cout << "Enable event for " << event_id << std::endl;
+        LOG_HIGH("procsmpl.cpp:enable_event(), Enable event for " << event_id);
         clock_t start = clock();
         events[event_id].fd = -1;
         events[event_id].fd = perf_event_open(&events[event_id].attr, tsmp.proc_parent->target_pid, event_id, events[event_id].fd, 0);
         if(events[event_id].fd == -1)
         {
             perror("perf_event_open");
-            //std::cout << "Core " << event_id << " could not be initialized\n";
+            LOG_HIGH("procsmpl.cpp:enable_event(), Core " << event_id << " could not be initialized");
             return 1;
         }else {
-            //std::cout << "Perf Open Success: " << events[event_id].fd << "\n";
+            LOG_HIGH("procsmpl.cpp:enable_event(), Perf Open Success: " << events[event_id].fd);
         }
 
         // Create mmap buffer for samples
@@ -696,7 +695,7 @@ int threadsmpl::enable_event(int event_id) {
         }
         clock_t end = clock();
         float seconds_update = (float) (end - start) / CLOCKS_PER_SEC;
-        // std::cout << seconds_update << "," << ret  << "\n";
+        LOG_HIGH("procsmpl.cpp:enable_event()," <<seconds_update<< "," << ret);
         return ret;
     }
     return 0; // process already running, success
@@ -705,14 +704,14 @@ int threadsmpl::enable_event(int event_id) {
 
 void threadsmpl::disable_event(int event_id) {
     if(events[event_id].running) {
-        // std::cout << "Disable event for " << event_id << std::endl;
+        LOG_HIGH("procsmpl.cpp:disable_event(), Disable event for " << event_id);
         events[event_id].running = 0;
         if (events[event_id].fd != -1) {
             int ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_DISABLE, 0);
             //close(events[event_id].fd);
             if(ret)
                 perror("ioctl END");
-                //std::cout << "Err ioctl END: " << events[event_id].fd <<", " << event_id << "\n";
+                LOG_HIGH("procsmpl.cpp:disable_event(), Err ioctl END: " << events[event_id].fd <<", " << event_id);
         }
 
     }
