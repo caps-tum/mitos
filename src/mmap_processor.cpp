@@ -106,13 +106,9 @@ int process_single_sample(struct perf_event_sample *pes,
     if (event_type & (PERF_SAMPLE_RAW)) {
         ret = read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->raw_size, sizeof(uint32_t));
         if (ret != 0) {
-            //std::cout << "Error Raw Data\n";
+            LOG_LOW("mmap_processor.cpp:process_single_sample(), Error Raw Data");
             return ret;
         }
-//        else if( pes.raw_size > size_hdr) {
-//            std::cout << "Error Size: " << pes.raw_size << " > " << size_hdr << "\n";
-//        }
-        //bytes_read += 4 + pes.raw_size;
         uint32_t remaining_data = pes->raw_size;
 
         // skip 4B padding
@@ -120,7 +116,7 @@ int process_single_sample(struct perf_event_sample *pes,
         ret = read_mmap_buffer(mmap_buf, pgmsk, (char *) &temp_data, sizeof(uint32_t)); // skip first 4 bytes
 
         if (ret != 0) {
-            std::cout << "Error TempData\n";
+            LOG_LOW("mmap_processor.cpp:process_single_sample(), Error TempData");
             return ret;
         }
 
@@ -150,7 +146,7 @@ int process_single_sample(struct perf_event_sample *pes,
                 ret_val |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->ibs_fetch_ext, sizeof(uint64_t));
             }
             if (ret != 0) {
-                std::cout << "Error TempDataFetch\n";
+                LOG_LOW("mmap_processor.cpp:process_single_sample(), Error TempDataFetch");
                 return ret;
             }
 #endif // USE_IBS_FETCH
@@ -194,47 +190,19 @@ int process_single_sample(struct perf_event_sample *pes,
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_data_3, sizeof(uint64_t));
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_lin, sizeof(uint64_t));
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_phy, sizeof(uint64_t));
-            //remaining_data = remaining_data -  4 - 56; // padding + 7 registers
 
-            //if (remaining_data >= 8) {
-            // read brs register
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_brs_target, sizeof(uint64_t));
-            //remaining_data -= 8;
-            //}
-            //if(remaining_data >= 8) {
-            // op_data_4 register found
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_brs_target, sizeof(uint64_t));
-            //remaining_data -= 8;
-            //}
-//                if (remaining_data != 0) {
-//                    std::cout << remaining_data << ", " << pes.raw_size << ", Hdr Size: " << size_hdr << std::endl;
-//                }
+
+
             if (ret != 0) {
-                std::cout << "Error ibs_op\n";
+                LOG_LOW("mmap_processor.cpp:process_single_sample(), Error ibs_op");
                 return ret;
             }
-
-//        }else {
-//            std::cout << "Error Size Output: " << pes->raw_size << std::endl;
-//        }
-        //int firstVal = (int) (unsigned char) pes.raw_data[0];
-        //std::cout << "Raw Data: " << pes.raw_size << ", " << firstVal << std::endl;
-//    }else {
-//        //std::cout << "Error Size is Zero: " << pes.raw_size << std::endl;
-//    }
 
 #endif // USE_IBS_OP
         }
     }
-
-    /*
-    if(event_type &(PERF_SAMPLE_CALLCHAIN))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->nr, sizeof(uint64_t));
-        pes->ips = (uint64_t*)malloc(pes->nr*sizeof(uint64_t));
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)pes->ips,pes->nr*sizeof(uint64_t));
-    }
-    */
 
     if(event_type &(PERF_SAMPLE_WEIGHT))
     {

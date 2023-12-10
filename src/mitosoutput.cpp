@@ -28,7 +28,6 @@ namespace fs = std::filesystem;
 #endif // __has_include
 
 #ifdef USE_DYNINST
-//#include <LineInformation.h> // symtabAPI
 #include <CodeObject.h> // parseAPI
 #include <InstructionDecoder.h> // instructionAPI
 #include <Module.h>
@@ -179,20 +178,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
             sample->mem_tlb,
             sample->numa_node);
 #ifdef USE_IBS_FETCH
-//        std::string ibs_l1_tlb_pg_size = "error";
-//        switch(sample->ibs_fetch_ctl.reg.ibs_l1_tlb_pg_sz){
-//            case 0:
-//                ibs_l1_tlb_pg_size ="4KB";
-//                break;
-//            case 1:
-//                ibs_l1_tlb_pg_size = "2MB";
-//                break;
-//            case 2:
-//                ibs_l1_tlb_pg_size = "1GB";
-//                break;
-//            default:
-//                break;
-//        }
+
         fprintf(mout->fout_raw,
                 ",%u,%u,%u, %u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%lx,%lx,%lx",
                 sample->ibs_fetch_ctl.reg.ibs_fetch_max_cnt,
@@ -299,7 +285,6 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
 
 void Mitos_write_samples_header(std::ofstream& fproc) {
     // Write header for processed samples
-    //std::ofstream fproc = fproc_pointer;
     fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,level,hit_type,op_type,snoop_mode,tlb_access,numa";
 #ifdef USE_IBS_FETCH
     fproc << ",ibs_fetch_max_cnt,ibs_fetch_cnt,ibs_fetch_lat,ibs_fetch_en,ibs_fetch_val,ibs_fetch_comp,ibs_ic_miss,ibs_phy_addr_valid,ibs_l1_tlb_pg_sz,ibs_l1_tlb_miss,ibs_l2_tlb_miss,ibs_rand_en,ibs_fetch_l2_miss,";
@@ -419,41 +404,6 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
         std::vector<SymtabAPI::Statement::Ptr> stats;
         sym_success = symtab_obj->getSourceLines(stats, ip);
 
-        // if(tmp_line%100==0)
-        // {
-        //     Offset addressInRange = ip;
-        //     std::vector<SymtabAPI::Statement::Ptr> lines = stats;
-        //
-        //     unsigned int originalSize = lines.size();
-        //     std::set<Module*> mods_for_offset;
-        //     symtab_obj->findModuleByOffset(mods_for_offset, addressInRange);
-        //
-        //     cout << "mods found: " << mods_for_offset.size() << endl;
-        //     for(auto i = mods_for_offset.begin();
-        //     i != mods_for_offset.end();
-        //     ++i)
-        //     {
-        //         (*i)->getSourceLines(lines, addressInRange);
-        //     }
-        //
-        //     cout << "line " << tmp_line << "sym_success " << sym_success << endl;
-        //
-        //     // const_iterator start_addr_valid = project<SymtabAPI::Statement::addr_range>(get<SymtabAPI::Statement::upper_bound>().lower_bound(addressInRange ));
-        //     // const_iterator end_addr_valid = impl_t::upper_bound(addressInRange );
-        //     // cout << start_addr_valid << endl << end_addr_valid << endl;
-        //     // while(start_addr_valid != end_addr_valid && start_addr_valid != end())
-        //     // {
-        //     //     if(*(*start_addr_valid) == addressInRange)
-        //     //     {
-        //     //         lines.push_back(*start_addr_valid);
-        //     //     }
-        //     //     ++start_addr_valid;
-        //     // }
-        //
-        //     cout << std::hex << "Statement: < [" << stats[0]->startAddr() << ", " << stats[0]->endAddr() << "): "
-        //    << std::dec << stats[0]->getFile() << ":" << stats[0]->getLine() << " >" << endl;
-        // }
-
         if(sym_success)
         {
             source = (string)stats[0]->getFile();
@@ -541,9 +491,6 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     fs::create_directory(path_dir_result + "/src");
     // copy first directory
     fs::copy(path_first_dir, path_dir_result, fs::copy_options::overwrite_existing | fs::copy_options::recursive);
-    //fs::copy(path_first_dir + "/data", path_dir_result + "/data");
-    //fs::copy(path_first_dir + "/hwdata", path_dir_result + "/hwdata");
-    //fs::copy(path_first_dir + "/src", path_dir_result + "/src");
     // delete first folder
     fs::remove_all(path_first_dir);
 

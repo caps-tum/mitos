@@ -24,41 +24,7 @@ struct func_args
     void *args;
 };
 
-// void* routine_wrapper(void *args)
-// {
-//     func_args *routine_struct = (func_args*)args;
-//
-//     Mitos_begin_sampler();
-//
-//     return routine_struct->func(routine_struct->args);
-// }
-//
-// // pthread hooks
-// int pthread_create(pthread_t *thread, pthread_attr_t *attr, void *(*start_routine) (void*), void *arg)
-// {
-//     //fprintf(stderr, "pthread_create hook\n");
-//     static pthread_create_fn_t og_pthread_create = NULL;
-//     if(!og_pthread_create)
-//         og_pthread_create = (pthread_create_fn_t)dlsym(RTLD_NEXT, "pthread_create");
-//
-//     struct func_args *f = (struct func_args*)malloc(sizeof(struct func_args));
-//     f->func = start_routine;
-//     f->args = arg;
-//
-//     return og_pthread_create(thread, attr, routine_wrapper, f);
-// }
-//
-// void pthread_exit(void *retval)
-// {
-//     //fprintf(stderr, "pthread_exit hook\n");
-//     static pthread_exit_fn_t og_pthread_exit = NULL;
-//     if(!og_pthread_exit)
-//         og_pthread_exit = (pthread_exit_fn_t)dlsym(RTLD_NEXT, "pthread_exit");
-//
-//     Mitos_end_sampler();
-//
-//     og_pthread_exit(retval);
-// }
+
 thread_local static mitos_output mout;
 long ts_output_prefix_omp;
 long tid_omp_first;
@@ -70,7 +36,7 @@ long ts_output = 0;
 
 void sample_handler(perf_event_sample *sample, void *args)
 {
-//    fprintf(stderr, "MPI handler sample: cpu=%d, tid=%d\n", sample->cpu, sample->tid);
+    LOG_MEDIUM("mitoshooks.cpp:sample_handler(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
     Mitos_write_sample(sample, &mout);
 }
 
@@ -132,7 +98,6 @@ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
 int MPI_Finalize()
 {
     std::cout << "MPI Finalize\n";
-    //fprintf(stderr, "MPI_Finalize hook\n");
     int mpi_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     Mitos_end_sampler();
@@ -153,7 +118,7 @@ int MPI_Finalize()
 
 void sample_handler_omp(perf_event_sample *sample, void *args)
 {
-//    fprintf(stderr, "MPI handler sample: cpu=%d, tid=%d\n", sample->cpu, sample->tid);
+    LOG_MEDIUM("mitoshooks.cpp:sample_handler_omp(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
     Mitos_write_sample(sample, &mout);
 }
 
@@ -180,7 +145,6 @@ static uint64_t my_next_id() {
 static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
                                           ompt_data_t *thread_data) {
     uint64_t tid_omp = thread_data->value = my_next_id();
-    //counter[tid].cc.thread_begin += 1;
 #ifdef SYS_gettid
     pid_t tid = syscall(SYS_gettid);
 #else
@@ -190,14 +154,18 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     if (tid_omp_first == -1) {
         tid_omp_first = tid;
     }
-
-    //int cpu_num = sched_getcpu();
-    //printf("Start Thread OMP: %u, tid: %u, omp_tid: %lu, cpu_id: %u\n",getpid(), tid, tid_omp, cpu_num);
+#if CURRENT_VERBOSITY >= VERBOSE_MEDIUM
+    int cpu_num = sched_getcpu();
+    LOG_MEDIUM("mitoshooks.cpp:on_ompt_callback_thread_begin(), Start Thread OMP:= " << getpid()
+         << " tid= "  << tid << " omp_tid= "  << tid_omp << " cpu_id= "  << cpu_num);
+#endif
     char rank_prefix[48];
     sprintf(rank_prefix, "%ld_openmp_distr_mon_%d", ts_output_prefix_omp, tid);
     Mitos_create_output(&mout, rank_prefix);
-//    pid_t curpid = getpid();
-//    std::cout << "Curpid: " << curpid << ", Rank: " << std::endl;
+#if CURRENT_VERBOSITY >= VERBOSE_MEDIUM
+   pid_t curpid = getpid();
+   LOG_MEDIUM("mitoshooks.cpp:on_ompt_callback_thread_begin(), Curpid:= " << curpid);
+#endif
 
     Mitos_pre_process(&mout);
     Mitos_set_pid(getpid());
@@ -212,18 +180,18 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     uint64_t tid_omp = thread_data->value;
-    //counter[tid].cc.thread_end += 1;
 #ifdef SYS_gettid
     pid_t tid = syscall(SYS_gettid);
 #else
 #error "SYS_gettid unavailable on this system"
 #endif // SYS_gettid
-//     printf("End Thread OMP: %u, tid: %u, omp_tid: %lu\n",getpid(), tid, tid_omp);
+    LOG_MEDIUM("mitoshooks.cpp:on_ompt_callback_thread_end(), End Thread OMP:= " << getpid()
+         << " tid= "  << tid << " omp_tid= "  << tid_omp );
     Mitos_end_sampler();
     // /proc/self/exe
     Mitos_post_process("", &mout);
 
-    //std::cout << "Thread End\n";
+    std::cout << "Thread End\n";
 }
 
 int ompt_initialize(ompt_function_lookup_t lookup, int initial_device_num,
@@ -250,9 +218,6 @@ void ompt_finalize(ompt_data_t *tool_data) {
            omp_get_wtime() - *(double *) (tool_data->ptr));
 
     printf("End Sampler...\n");
-    //Mitos_end_sampler();
-    //printf("Post process...\n");
-    // ./../examples/omp_example
     // /proc/self/exe
     // TODO: valid bin_name leads to an infinite loop in Symtab::SymtabAPI::openFile(bin_name, ...)
     //Mitos_post_process("", &mout);
@@ -263,13 +228,13 @@ void ompt_finalize(ompt_data_t *tool_data) {
 }
 
 // only used for debugging purposes
-//void test_symtab() {
-//    SymtabAPI::Symtab *symtab_obj;
-//    SymtabCodeSource *symtab_code_src;
-//    std::cout << "Symtab: Open File..." << "\n";
-//    int sym_success = SymtabAPI::Symtab::openFile(symtab_obj,"/proc/self/exe");
-//    std::cout << "Completed: " << sym_success << "\n";
-//}
+void test_symtab() {
+   SymtabAPI::Symtab *symtab_obj;
+   SymtabCodeSource *symtab_code_src;
+   std::cout << "Symtab: Open File..." << "\n";
+   int sym_success = SymtabAPI::Symtab::openFile(symtab_obj,"/proc/self/exe");
+   std::cout << "Completed: " << sym_success << "\n";
+}
 
 #ifdef __cplusplus
 extern "C" {
@@ -278,7 +243,7 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
                                           const char *runtime_version) {
     static double time = 0; // static defintion needs constant assigment
     time = omp_get_wtime();
-    //printf("Init_start_tool: %u \n", getpid());
+    printf("Init_start_tool: %u \n", getpid());
 
     static ompt_start_tool_result_t ompt_start_tool_result = {
             &ompt_initialize, &ompt_finalize, {.ptr = &time}};

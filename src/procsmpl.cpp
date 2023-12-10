@@ -9,8 +9,6 @@
 #include <regex>
 
 thread_local static threadsmpl tsmp;
-//static __thread threadsmpl tsmp;
-//static threadsmpl tsmp;
 
 pid_t gettid(void)
 {
@@ -209,12 +207,9 @@ void procsmpl::init_attrs()
 
     attr.sample_type =
         PERF_SAMPLE_IP |
-        //PERF_SAMPLE_CALLCHAIN |
-        //PERF_SAMPLE_ID |
         PERF_SAMPLE_STREAM_ID |
         PERF_SAMPLE_TIME |
         PERF_SAMPLE_TID |
-        //PERF_SAMPLE_PERIOD |
         PERF_SAMPLE_CPU |
         PERF_SAMPLE_ADDR |
         PERF_SAMPLE_WEIGHT |
@@ -227,8 +222,6 @@ void procsmpl::init_attrs()
     attr.type = PERF_TYPE_RAW;
     attr.config = 0x5101cd;          // MEM_TRANS_RETIRED:LATENCY_THRESHOLD
     attr.config1 = sample_latency_threshold;
-    //attr.config = 0x5341d0;         // MEM_UOPS_RETIRED:SPLIT_LOADS
-    //attr.config1 = 0;
     attr.precise_ip = 2;
     attr.disabled = 1;              // Event group leader starts disabled
 
@@ -237,8 +230,6 @@ void procsmpl::init_attrs()
     // Set up store sampling
     attr.config = 0x5382d0;         // MEM_UOPS_RETIRED:ALL_STORES
     attr.config1 = 0;
-    //attr.config = 0x5342d0;         // MEM_UOPS_RETIRED:SPLIT_STORES
-    //attr.config1 = 0;
     attr.precise_ip = 2;
     attr.disabled = 0;              // Event group follower starts enabled
 
