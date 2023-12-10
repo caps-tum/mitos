@@ -74,7 +74,7 @@ int parse_args(int argc, char **argv)
     set_defaults();
 
     int c;
-    while((c=getopt(argc, argv, "b:p:t:s:v:")) != -1)
+    while((c=getopt(argc, argv, "b:p:t:s:")) != -1)
     {
         switch(c)
         {

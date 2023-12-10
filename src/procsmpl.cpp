@@ -303,12 +303,12 @@ void procsmpl::init_attrs_ibs() {
 #if defined(USE_IBS_ALL_ON) || defined(USE_IBS_THREAD_MIGRATION)
     // if ALL_ON or Selective On
     num_attrs = get_num_cores();
-    std::cout << "Amount CPUs: " << num_attrs << std::endl;
+    LOG_LOW("procsmpl.cpp:init_attrs_ibs(), Amount CPUs: " << num_attrs);
 
 #endif // USE_IBS_ALL_ON || USE_IBS_THREAD_MIGRATION
     attrs = (struct perf_event_attr*)malloc(num_attrs*sizeof(struct perf_event_attr));
     for (int i = 0; i< num_attrs; i++) {
-        std::cout << "Init perf_event_attr " << i << std::endl;
+        LOG_LOW("procsmpl.cpp:init_attrs_ibs(), perf_event_attr: " << i);
         struct perf_event_attr attr;
         //memset(&attr, 0, sizeof(struct perf_event_attr));
         init_attr_ibs(&attr, sample_period);

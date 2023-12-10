@@ -528,7 +528,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
         }
     }
     if(first_dir_found) {
-        std::cout << "First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result\n";
+        LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result");
     }else {
         // error, directory not found
         return 1;
@@ -558,7 +558,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
             if (dir_entry.path().u8string().rfind("./"+ dir_prefix) == 0
             && dir_entry.path().u8string() != path_first_dir
             && dir_entry.path().u8string() != path_dir_result) {
-                std::cout << "Move Data " << dir_entry.path() << " to Result Folder...\n";
+                LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), Move Data " << dir_entry.path() << " to Result Folder...");
                 // src file
                 std::string path_samples_src = dir_entry.path().u8string() + "/data/samples.csv";
                 if (fs::exists(path_samples_src)) {
