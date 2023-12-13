@@ -7,6 +7,8 @@
 #include "Mitos.h"
 #include "mmap_processor.h"
 
+/*if the sample type is not recognized, the skip_mmap_buffer function is called 
+to skip a certain amount of data in the memory-mapped buffer (in this case, the size of ehdr).*/
 void skip_mmap_buffer(struct perf_event_mmap_page *mmap_buf, size_t sz)
 {
     if ((mmap_buf->data_tail + sz) > mmap_buf->data_head)
@@ -14,7 +16,7 @@ void skip_mmap_buffer(struct perf_event_mmap_page *mmap_buf, size_t sz)
 
     mmap_buf->data_tail += sz;
 }
-
+/*Reads the mmap buffer and writes the info to a char* */
 int read_mmap_buffer(struct perf_event_mmap_page *mmap_buf, size_t pgmsk, char *out, size_t sz)
 {
 	char *data;
@@ -36,6 +38,8 @@ int read_mmap_buffer(struct perf_event_mmap_page *mmap_buf, size_t pgmsk, char *
 	return 0;
 }
 
+/*This function processes a lost sample event. This typically occurs when the sampling rate 
+    is too high for the system to keep up with, and some samples are dropped.*/
 void process_lost_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 {
     int ret;
@@ -44,6 +48,7 @@ void process_lost_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 	ret = read_mmap_buffer(mmap_buf, pgmsk, (char*)&lost, sizeof(lost));
 }
 
+/* This function processes an exit sample event.*/
 void process_exit_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 {
 	int ret;
@@ -52,6 +57,7 @@ void process_exit_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 	ret = read_mmap_buffer(mmap_buf, pgmsk, (char*)&grp, sizeof(grp));
 }
 
+/*This function processes a frequency-related event.*/
 void process_freq_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 {
 	int ret;
@@ -60,6 +66,9 @@ void process_freq_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 	ret = read_mmap_buffer(mmap_buf, pgmsk, (char*)&thr, sizeof(thr));
 }
 
+/*This function processes a single sample event. It reads the mmap buffer and stores the 
+    information in the pes structure. The user supplied handler_fn is called to write the 
+    data in pes to output text files. */
 int process_single_sample(struct perf_event_sample *pes, 
                           uint32_t event_type, 
                           sample_handler_fn_t handler_fn,
@@ -220,6 +229,7 @@ int process_single_sample(struct perf_event_sample *pes,
         pes->mem_tlb = datasource_mem_tlb(pes->data_src);
     }
 
+    // If the handler_fn has been set, write the samples to the output files
     if(handler_fn)
     {
         handler_fn(pes, handler_fn_args);
@@ -228,6 +238,9 @@ int process_single_sample(struct perf_event_sample *pes,
     return ret;
 }
 
+/* This function reads and processes the memory-mapped buffer (which stores all the 
+information associated with the samples). Depending on the sample type, it either 
+writes them, skips them, etc.*/
 int process_sample_buffer(struct perf_event_sample *pes,
                           uint32_t event_type, 
                           sample_handler_fn_t handler_fn,
@@ -240,9 +253,14 @@ int process_sample_buffer(struct perf_event_sample *pes,
 
     for(;;) 
     {
+        // Reads the mmap buffer and stores the info in ehdr 
         ret = read_mmap_buffer(mmap_buf, pgmsk, (char*)&ehdr, sizeof(ehdr));
         if(ret)
             return 0; // no more samples
+        /*Depending on the type of sample, different processing functions are called. These 
+        functions may handle different aspects of the performance data, such as processing a single sample, 
+        handling exit events, handling lost samples, and handling frequency-related events.
+        */
         switch(ehdr.type) 
         {
             case PERF_RECORD_SAMPLE:
@@ -262,6 +280,8 @@ int process_sample_buffer(struct perf_event_sample *pes,
                 process_freq_sample(mmap_buf, pgmsk);
                 break;
             default:
+                /*if the sample type is not recognized, the skip_mmap_buffer function is called 
+                to skip a certain amount of data in the memory-mapped buffer (in this case, the size of ehdr).*/
                 skip_mmap_buffer(mmap_buf, sizeof(ehdr));
         }
     }

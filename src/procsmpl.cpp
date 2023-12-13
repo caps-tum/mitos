@@ -10,6 +10,7 @@
 
 thread_local static threadsmpl tsmp;
 
+// get thread id of the current thread (if using single thread. returns the process id).
 pid_t gettid(void)
 {
 	return (pid_t)syscall(__NR_gettid);
@@ -53,6 +54,7 @@ int get_psr() {
     return std::stoi( str_output_regex );
 }
 
+// perf_event_open system call
 int perf_event_open(struct perf_event_attr *attr,
                     pid_t pid, int cpu, int group_fd,
                     unsigned long flags)
@@ -111,7 +113,7 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
     double t_start = (double) ((double) clock())/ CLOCKS_PER_SEC;
     int i;
     int fd = info->si_fd;
-
+    // Iterate over all the threads
     for(i=0; i<tsmp.num_events; i++)
     {
         if(tsmp.events[i].fd == fd)
@@ -166,6 +168,11 @@ procsmpl::~procsmpl()
 {
 }
 
+// Not very clear:
+// - why num_attrs modified from 2 to 1?
+// - For ibs, why is num_attrs is set to the number of cores?
+// - why attr allocated a memory of size 2?
+// - Do load sampling and store sampling correspond to loads and stores?
 void procsmpl::init_attrs()
 {
 #if  defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
@@ -236,6 +243,7 @@ void procsmpl::init_attrs()
     attrs[1] = attr;
 }
 
+// get total number of cores
 int get_num_cores() {
     long numCPU = sysconf(_SC_NPROCESSORS_ONLN);
     std::cout << "Amount CPUs: " << numCPU << std::endl;
@@ -310,11 +318,14 @@ void procsmpl::init_attrs_ibs() {
 
 int procsmpl::begin_sampling()
 {
+    // Initialize perf_event attributes if coming here for the first time
     if(first_time)
         init_attrs();
 
     first_time = false;
 
+    // Initialize thread-local sampler
+    // Using the perf_event attributes, the perf_event call for each thread is initialized
     int ret = tsmp.init(this);
     if(ret)
         return ret;
@@ -333,8 +344,10 @@ int threadsmpl::init(procsmpl *parent)
     
     ready = 0;
 
+    // Set parent process
     proc_parent = parent;
 
+    // initialize perf_event calls using parent's attributes 
     ret = init_perf_events(proc_parent->attrs, proc_parent->num_attrs, proc_parent->mmap_size);
     if(ret)
         return ret;
@@ -403,12 +416,14 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
 
     events[0].fd = -1;
     LOG_HIGH("procsmpl.cpp:init_perf_events(), Total " << num_events << " event(s)");
+    // Iterate over all the threads
     for(i=0; i<num_events; i++)
     {
-        events[i].attr = attrs[i];
-
         // Create attr according to sample mode
+        events[i].attr = attrs[i];
         LOG_MEDIUM("procsmpl.cpp:init_perf_events(), tsmp.proc_parent->target_pid: " << tsmp.proc_parent->target_pid);
+
+        // Initialize perf_event call
         events[i].fd = perf_event_open(&events[i].attr, tsmp.proc_parent->target_pid, -1, events[0].fd, 0);
         std::cout << "event no.(i): " << i << ", file descriptor(fd): "<< events[i].fd << "\n";
 
@@ -418,7 +433,7 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
             return 1;
         }
 
-        // Create mmap buffer for samples
+        // Using the mmap system call to create a memory-mapped buffer for perf_event samples. 
         events[i].mmap_buf = (struct perf_event_mmap_page*)
             mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, events[i].fd, 0);
 
@@ -533,10 +548,15 @@ int threadsmpl::begin_sampling()
         return ret;
     #endif // USE_IBS_ALL_ON
 #else // PEBS (Intel)
+
+    /* This `ioctl` call resets the counter associated with the perf_event. 
+    Thus, counter is set back to its initial value, and counting begins anew.*/
     ret = ioctl(events[0].fd, PERF_EVENT_IOC_RESET, 0);
     if(ret)
         perror("ioctl");
-
+    
+    /* This `ioctl` call starts the counting of the specified event. 
+    The counter is now actively monitoring the associated performance event.*/
     ret = ioctl(events[0].fd, PERF_EVENT_IOC_ENABLE, 0);
     if(ret)
         perror("ioctl");
@@ -563,12 +583,18 @@ void threadsmpl::end_sampling()
         }
     #endif  // USE_IBS_ALL_ON || USE_IBS_THREAD_MIGRATION
 #else // PEBS (Intel)
+
+    /* This `ioctl` call disable the performance monitoring event. When disabled, 
+    the event is no longer actively counting or generating samples.
+    Disabling the event before processing the sample buffer ensures that 
+    no new samples are collected, while the samples from the current period are being processed. 
+    This helps in preventing interference during the processing of performance data.*/
     ret = ioctl(events[0].fd, PERF_EVENT_IOC_DISABLE, 0);
     if(ret)
         perror("ioctl");
 #endif // USE_IBS_FETCH ||  USE_IBS_OP
 
-
+    // Iterate over all the threads
     for(i=0; i<num_events; i++)
     {
         // Flush out remaining samples
@@ -578,6 +604,9 @@ void threadsmpl::end_sampling()
                 continue;
             }
 #endif // USE_IBS_FETCH ||  USE_IBS_OP
+            /* After the sampling has completed, reads the related info in the mmap buffers. 
+            process_sample_buffer() also takes the handler_fn as an argument which writes the information
+            stored in the mmap buffer to readable text files.*/
             process_sample_buffer(&pes,
                               events[i].attr.type,
                               proc_parent->handler_fn,

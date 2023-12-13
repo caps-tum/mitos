@@ -35,7 +35,9 @@ struct perf_event_container
     int running;
 };
 
-/* Process-wide sampler*/
+/* Process-wide sampler
+This is supposed to contain the attributes of all the sampling modes 
+Depending on these sampling modes, each executing thread runs the sampler. */
 class procsmpl
 {
     friend class threadsmpl;
@@ -77,7 +79,7 @@ public:
 
     pid_t target_pid;
 private:
-    /* Set up perf_event_attr*/
+    /* Set up perf_event_attr (to be used by thread-local samplers)*/
     void init_attrs();
     void init_attrs_ibs();
 private:
@@ -106,7 +108,9 @@ private:
 
 };
 
-/* Thread-local Sampler*/
+/* Thread-local Sampler
+Takes the attributes and sampling modes stored by the process. 
+The sampler is initiated on the executing thread. */
 class threadsmpl
 {
     friend class procsmpl;
