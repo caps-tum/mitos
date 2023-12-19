@@ -76,36 +76,41 @@ void update_sampling_events() {
     // - try to disable old monitored core
     // function completes if enable thread was successful
     // possible disadvantage: function only completes if enable_event has been successful (no other IBS process runs on same core)
-//    int has_switch = 0;
-//    struct timespec tp;
-//    struct timespec tp2;
-//    clockid_t clk_id = CLOCK_PROCESS_CPUTIME_ID;
-//    int t_start2 = clock_gettime(clk_id, &tp);
+#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+   int has_switch = 0;
+   struct timespec tp;
+   struct timespec tp2;
+   clockid_t clk_id = CLOCK_PROCESS_CPUTIME_ID;
+   int t_start2 = clock_gettime(clk_id, &tp);
+#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
     while(ret != 0) {
         int active_core = get_psr(); // OLD function
         //int active_core = sched_getcpu(); // this function only works on mitoshooks, monitoring occurs on same thread as computation
-        //std::cout << "Core: " << active_core << ", Events: " << tsmp.num_events << "\n";
-        // std::cout << "Method called: "<< active_core << "\n";
+        LOG_HIGH ("procsmpl.cpp:update_sampling_events(), Core: " << active_core << ", Events: " << tsmp.num_events);
+        LOG_HIGH ("procsmpl.cpp:update_sampling_events(), Method called: "<< active_core);
         if (active_core < 0) {
             std::cout << "No Core active\n";
             return;
         }
         for (int i = 0; i < tsmp.num_events; i++) {
-            //std::cout << "Check " << i << std::endl;
             if (active_core == i) {
-//                has_switch =  !(tsmp.events[i].running);
+            #if CURRENT_VERBOSITY >= VERBOSE_HIGH
+               has_switch =  !(tsmp.events[i].running);
+            #endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
                 ret = tsmp.enable_event(active_core);
             }else {
                 tsmp.disable_event(i);
             }
         }
     }
-    //clock_t t_end = clock();
-    //float seconds = (float)(t_end - t_start) / CLOCKS_PER_SEC;
-//    int t_end2 = clock_gettime(clk_id, &tp2);
-//    std::cout << has_switch << "," << (tp2.tv_nsec - tp.tv_nsec) <<"\n";
-    //std::cout << has_switch << "," << seconds <<"\n";
-    //float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
+#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+    clock_t t_end = clock();
+    float seconds = (float)(t_end - t_start) / CLOCKS_PER_SEC;
+   int t_end2 = clock_gettime(clk_id, &tp2);
+   LOG_HIGH ("procsmpl.cpp:update_sampling_events(), has_switch: " << has_switch << "," << (tp2.tv_nsec - tp.tv_nsec));
+   LOG_HIGH ("procsmpl.cpp:update_sampling_events(), has_switch: " << has_switch << "," << seconds);
+    float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
+#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
 }
 
 void thread_sighandler(int sig, siginfo_t *info, void *extra)
@@ -118,10 +123,7 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
     {
         if(tsmp.events[i].fd == fd)
         {
-            //std::stringstream  str_cmd;
-            //str_cmd << "ps -o psr " << tsmp.proc_parent->target_pid;
-            //str_cmd << "taskset -p 0x02 " << child;
-            // system(str_cmd.str().c_str());
+
             process_sample_buffer(&tsmp.pes,
                                   tsmp.events[i].attr.sample_type,
                                   tsmp.proc_parent->handler_fn,
@@ -132,7 +134,9 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
     }
 
     ioctl(fd, PERF_EVENT_IOC_REFRESH, 1);
-//    clock_t time_process_end = clock();
+#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+   clock_t time_process_end = clock();
+#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
 #if defined( USE_IBS_THREAD_MIGRATION)
     tsmp.counter_update++;
     if(tsmp.counter_update >= 250) {
@@ -140,11 +144,12 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
         update_sampling_events();
     }
 #endif // USE_IBS_THREAD_MIGRATION
+#if CURRENT_VERBOSITY >= VERBOSE_HIGH
     double t_end = ((double) clock())/ CLOCKS_PER_SEC;
-    //float seconds = (float)(time_process_end - start) / CLOCKS_PER_SEC;
-    //float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
-    // << "Process: " << seconds << ", Counter: "
-    //std::cout  << t_start <<", " << t_end << ", " << gettid() << ", " << fd << "," << sched_getcpu() << "\n";
+    float seconds = (float)(time_process_end - start) / CLOCKS_PER_SEC;
+    float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
+    LOG_HIGH ("procsmpl.cpp:thread_sighandler(), t_start: " t_start <<", t_end: " << t_end << ", gettid(): " << gettid() << ", fd: " << fd << ", sched_getcpu(): " << sched_getcpu());
+#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
 }
 
 
@@ -168,11 +173,6 @@ procsmpl::~procsmpl()
 {
 }
 
-// Not very clear:
-// - why num_attrs modified from 2 to 1?
-// - For ibs, why is num_attrs is set to the number of cores?
-// - why attr allocated a memory of size 2?
-// - Do load sampling and store sampling correspond to loads and stores?
 void procsmpl::init_attrs()
 {
 #if  defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
@@ -246,7 +246,6 @@ void procsmpl::init_attrs()
 // get total number of cores
 int get_num_cores() {
     long numCPU = sysconf(_SC_NPROCESSORS_ONLN);
-    std::cout << "Amount CPUs: " << numCPU << std::endl;
     return (int) numCPU;
 }
 
@@ -302,12 +301,12 @@ void procsmpl::init_attrs_ibs() {
 #if defined(USE_IBS_ALL_ON) || defined(USE_IBS_THREAD_MIGRATION)
     // if ALL_ON or Selective On
     num_attrs = get_num_cores();
-    LOG_LOW("procsmpl.cpp:init_attrs_ibs(), Amount CPUs: " << num_attrs);
+    LOG_HIGH("procsmpl.cpp:init_attrs_ibs(), Amount CPUs: " << num_attrs);
 
 #endif // USE_IBS_ALL_ON || USE_IBS_THREAD_MIGRATION
     attrs = (struct perf_event_attr*)malloc(num_attrs*sizeof(struct perf_event_attr));
     for (int i = 0; i< num_attrs; i++) {
-        LOG_LOW("procsmpl.cpp:init_attrs_ibs(), perf_event_attr: " << i);
+        LOG_HIGH("procsmpl.cpp:init_attrs_ibs(), perf_event_attr: " << i);
         struct perf_event_attr attr;
         //memset(&attr, 0, sizeof(struct perf_event_attr));
         init_attr_ibs(&attr, sample_period);
@@ -383,7 +382,7 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
             // initailize one event for each core
             events[i].fd = -1;
             events[i].attr = attrs[i];
-            LOG_HIGH("procsmpl.cpp:init_perf_events(), Init Event " << i);
+           LOG_HIGH ("procsmpl.cpp:init_perf_events(), Init Event " << i);
             // Create attr according to sample mode
             // defines which core is monitored by this event
             events[i].fd = perf_event_open(&events[i].attr, gettid(), i, events[i].fd, 0);
