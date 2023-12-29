@@ -170,12 +170,17 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
             sample->time,
             sample->addr,
             sample->cpu,
-            sample->weight,
+            sample->weight);
+#if !defined(USE_IBS_FETCH) && !defined(USE_IBS_OP)
+    fprintf(mout->fout_raw,
+            "%s,%s,%s,%s,%s",
             sample->mem_lvl,
             sample->mem_hit,
             sample->mem_op,
             sample->mem_snoop,
-            sample->mem_tlb,
+            sample->mem_tlb);
+#endif            
+    fprintf(mout->fout_raw, "%d",
             sample->numa_node);
 #ifdef USE_IBS_FETCH
 
@@ -285,7 +290,11 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
 
 void Mitos_write_samples_header(std::ofstream& fproc) {
     // Write header for processed samples
-    fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,level,hit_type,op_type,snoop_mode,tlb_access,numa";
+    fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
+#if !defined(USE_IBS_FETCH) && !defined(USE_IBS_OP)
+    fproc << "level,hit_type,op_type,snoop_mode,tlb_access,";
+#endif
+    fproc << "numa";
 #ifdef USE_IBS_FETCH
     fproc << ",ibs_fetch_max_cnt,ibs_fetch_cnt,ibs_fetch_lat,ibs_fetch_en,ibs_fetch_val,ibs_fetch_comp,ibs_ic_miss,ibs_phy_addr_valid,ibs_l1_tlb_pg_sz,ibs_l1_tlb_miss,ibs_l2_tlb_miss,ibs_rand_en,ibs_fetch_l2_miss,";
     fproc << "ibs_fetch_lin_addr,ibs_fetch_phy_addr,ibs_fetch_control_extended";
