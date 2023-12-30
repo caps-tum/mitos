@@ -157,7 +157,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
     Mitos_resolve_symbol(sample);
   
     fprintf(mout->fout_raw,
-            "%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu,%s,%s,%s,%s,%s,%d",
+            "%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu",
             sample->ip,
             sample->data_symbol,
             sample->data_size,
