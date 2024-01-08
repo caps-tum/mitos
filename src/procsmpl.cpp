@@ -50,7 +50,6 @@ int get_psr() {
     if (str_output_regex == "") {
         return -1;
     }
-    //std::cout << str_output_regex << std::endl;
     return std::stoi( str_output_regex );
 }
 
@@ -308,7 +307,6 @@ void procsmpl::init_attrs_ibs() {
     for (int i = 0; i< num_attrs; i++) {
         LOG_HIGH("procsmpl.cpp:init_attrs_ibs(), perf_event_attr: " << i);
         struct perf_event_attr attr;
-        //memset(&attr, 0, sizeof(struct perf_event_attr));
         init_attr_ibs(&attr, sample_period);
         attrs[i] = attr;
     }
@@ -387,7 +385,6 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
             // defines which core is monitored by this event
             LOG_HIGH("procsmpl.cpp:init_perf_events(), gettid(): " << gettid() << ", tsmp.proc_parent->target_pid: " << tsmp.proc_parent->target_pid);
             events[i].fd = perf_event_open(&events[i].attr, gettid(), i, events[i].fd, 0);
-            //fprintf(stderr, "i: %d : thread: %d : events[0].fd: %d : returned %d\n", i, gettid(), events[0].fd, errno);
 
             if(events[i].fd == -1)
             {

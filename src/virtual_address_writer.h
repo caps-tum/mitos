@@ -10,6 +10,11 @@
 #include "cassert"
 #include "fstream"
 
+/* This function saves the virtual address offset for the 
+    executable (being run for sampling). 
+* This helps in locating the source code of the executable
+    using the instruction pointers obtained through the samples.
+* This function must be included in the source code of the executable */
 void save_virtual_address_offset(std::string filename) {
     // ---------  get virtual address offset -------------------
     void * const handle = dlopen(NULL, RTLD_LAZY);

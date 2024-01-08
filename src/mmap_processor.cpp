@@ -38,8 +38,6 @@ int read_mmap_buffer(struct perf_event_mmap_page *mmap_buf, size_t pgmsk, char *
 	return 0;
 }
 
-/*This function processes a lost sample event. This typically occurs when the sampling rate 
-    is too high for the system to keep up with, and some samples are dropped.*/
 void process_lost_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 {
     int ret;
@@ -48,7 +46,6 @@ void process_lost_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 	ret = read_mmap_buffer(mmap_buf, pgmsk, (char*)&lost, sizeof(lost));
 }
 
-/* This function processes an exit sample event.*/
 void process_exit_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 {
 	int ret;
@@ -57,7 +54,6 @@ void process_exit_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 	ret = read_mmap_buffer(mmap_buf, pgmsk, (char*)&grp, sizeof(grp));
 }
 
-/*This function processes a frequency-related event.*/
 void process_freq_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 {
 	int ret;
@@ -68,7 +64,7 @@ void process_freq_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 
 /*This function processes a single sample event. It reads the mmap buffer and stores the 
     information in the pes structure. The user supplied handler_fn is called to write the 
-    data in pes to output text files. */
+    data in `pes` to output text files. */
 int process_single_sample(struct perf_event_sample *pes, 
                           uint32_t event_type, 
                           sample_handler_fn_t handler_fn,
@@ -159,37 +155,7 @@ int process_single_sample(struct perf_event_sample *pes,
                 return ret;
             }
 #endif // USE_IBS_FETCH
-//                ibs_fetch_ctl_t ibs_fetch_str = pes.ibs_fetch_ctl;
-//                //result << "IbsFetchMaxCnt: " << ibs_fetch_str.reg.ibs_fetch_max_cnt << ", ";
-//                //result << "IbsFetchCnt: " << ibs_fetch_str.reg.ibs_fetch_cnt << ", ";
-//                result << "IbsFetchLat: " << ibs_fetch_str.reg.ibs_fetch_lat << ", ";
-//                // result << "IbsFetchEn: " << (ibs_fetch_str.reg.ibs_fetch_en?"1":"0") << ", ";
-//                result << "Instruction Fetch Valid: " << (ibs_fetch_str.reg.ibs_fetch_val ? "1" : "0") << ", ";
-//                result << "Instruction Fetch Complete: " << (ibs_fetch_str.reg.ibs_fetch_comp ? "1" : "0") << ", ";
-//                result << "Instr. Fetch miss: " << (ibs_fetch_str.reg.ibs_ic_miss ? "1" : "0") << ", ";
-//                result << "IbsPhyAddr Valid: " << (ibs_fetch_str.reg.ibs_phy_addr_valid ? "1" : "0") << ", ";
-//                std::string ibs_l1_tlb_pg_size = "error";
-//                switch (ibs_fetch_str.reg.ibs_l1_tlb_pg_sz) {
-//                    case 0:
-//                        ibs_l1_tlb_pg_size = "4KB";
-//                        break;
-//                    case 1:
-//                        ibs_l1_tlb_pg_size = "2MB";
-//                        break;
-//                    case 2:
-//                        ibs_l1_tlb_pg_size = "1GB";
-//                        break;
-//                    default:
-//                        break;
-//                }
-//                result << "IbsL1TlbPgSz: " << ibs_l1_tlb_pg_size << ", ";
-//                result << "IbsTlbMiss Instr. Cache L1: " << (ibs_fetch_str.reg.ibs_l1_tlb_miss ? "1" : "0") << ", ";
-//                result << "IbsL2TlbMiss Instr. Cache L2: " << (ibs_fetch_str.reg.ibs_l2_tlb_miss ? "1" : "0") << ", ";
-//                result << "IbsRandEn (Random tagging): " << (ibs_fetch_str.reg.ibs_rand_en ? "1" : "0") << ", ";
-//                result << "IbsFetchL2 Miss: " << (ibs_fetch_str.reg.ibs_fetch_l2_miss ? "1" : "0") << ", ";
-//                result << std::hex << pes.ibs_fetch_ctl.val << "\t" << pes.ibs_fetch_lin << "\t" << pes.ibs_fetch_phy.reg.ibs_fetch_phy_addr
-//                       << "\t" << ((extended_exists) ? (pes.ibs_fetch_ext) : 0) << std::endl;
-            // std::cout << result.str();
+
 #ifdef USE_IBS_OP
             // read standard register content
             int ret_val = read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_ctl, sizeof(uint64_t));
