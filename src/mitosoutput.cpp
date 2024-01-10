@@ -157,7 +157,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
     Mitos_resolve_symbol(sample);
   
     fprintf(mout->fout_raw,
-            "%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu",
+            "%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu,",
             sample->ip,
             sample->data_symbol,
             sample->data_size,
@@ -173,7 +173,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
             sample->weight);
 #if !defined(USE_IBS_FETCH) && !defined(USE_IBS_OP)
     fprintf(mout->fout_raw,
-            "%s,%s,%s,%s,%s",
+            "%s,%s,%s,%s,%s,",
             sample->mem_lvl,
             sample->mem_hit,
             sample->mem_op,
