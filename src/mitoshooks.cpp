@@ -7,6 +7,8 @@
 #include <dlfcn.h>
 
 #include <unistd.h>
+#include <sys/ptrace.h>
+#include <sys/wait.h>
 #include <sys/syscall.h>
 
 // #define _GNU_SOURCE // sched_getcpu(3) is glibc-specific (see the man page)
@@ -180,7 +182,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
 
 static std::string getExecutableNameFromPID(pid_t pid) {
     char buffer[1024];
-    std::memset(buffer, 0, sizeof(buffer));
+    memset(buffer, 0, sizeof(buffer));
 
     // Create the path to the symbolic link
     snprintf(buffer, sizeof(buffer), "/proc/%d/exe", pid);
