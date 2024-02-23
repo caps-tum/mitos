@@ -40,13 +40,20 @@ using namespace ParseAPI;
 
 #endif // USE_DYNINST
 
-int Mitos_create_output(mitos_output *mout, const char *prefix_name)
+using namespace std;
+static mitos_output mout1, mout2;
+SymtabAPI::Symtab *symtab_obj;
+SymtabCodeSource *symtab_code_src;
+int sym_success = 0;
+
+int process_mout(mitos_output *mout, const char *prefix_name)
 {
     memset(mout,0,sizeof(struct mitos_output));
 
     // Set top directory name
     std::stringstream ss_dname_topdir;
-    ss_dname_topdir << prefix_name << "_" << std::time(NULL);
+    //ss_dname_topdir << prefix_name << "_" << std::time(NULL);
+    ss_dname_topdir << prefix_name;
     mout->dname_topdir = strdup(ss_dname_topdir.str().c_str());
 
     // Set data directory name
@@ -64,231 +71,61 @@ int Mitos_create_output(mitos_output *mout, const char *prefix_name)
     ss_dname_hwdatadir << ss_dname_topdir.str() << "/hwdata";
     mout->dname_hwdatadir = strdup(ss_dname_hwdatadir.str().c_str());
 
-    // Create the directories
-    int err;
-    err = mkdir(mout->dname_topdir,0777);
-    err |= mkdir(mout->dname_datadir,0777);
-    err |= mkdir(mout->dname_srcdir,0777);
-    err |= mkdir(mout->dname_hwdatadir,0777);
+    // // Create the directories
+    // int err;
+    // err = mkdir(mout->dname_topdir,0777);
+    // err |= mkdir(mout->dname_datadir,0777);
+    // err |= mkdir(mout->dname_srcdir,0777);
+    // err |= mkdir(mout->dname_hwdatadir,0777);
 
-    if(err)
-    {
-        std::cerr << "Mitos: Failed to create output directories!\n";
-        return 1;
-    }
+    // if(err)
+    // {
+    //     std::cerr << "Mitos: Failed to create output directories!\n";
+    //     return 1;
+    // }
 
-    // Create file for raw sample output
+    // // Create file for raw sample output
     mout->fname_raw = strdup(std::string(std::string(mout->dname_datadir) + "/raw_samples.csv").c_str());
-    mout->fout_raw = fopen(mout->fname_raw,"w");
-    if(!mout->fout_raw)
-    {
-        std::cerr << "Mitos: Failed to create raw output file!\n";
-        return 1;
-    }
+    //mout->fout_raw = fopen(mout->fname_raw,"r");
+    // if(!mout->fout_raw)
+    // {
+    //     std::cerr << "Mitos: Failed to create raw output file!\n";
+    //     return 1;
+    // }
 
-    // Create file for processed sample output
+    // // Create file for processed sample output
     mout->fname_processed = strdup(std::string(std::string(mout->dname_datadir) + "/samples.csv").c_str());
-    mout->fout_processed = fopen(mout->fname_processed,"w");
-    if(!mout->fout_processed)
-    {
-        std::cerr << "Mitos: Failed to create processed output file!\n";
-        return 1;
-    }
+    //mout->fout_processed = fopen(mout->fname_processed,"");
+    // if(!mout->fout_processed)
+    // {
+    //     std::cerr << "Mitos: Failed to create processed output file!\n";
+    //     return 1;
+    // }
 
-    //copy over source code to mitos output folder
-    if (!mout->dname_srcdir_orig.empty())
-    {
-        if(!fs::exists(mout->dname_srcdir_orig))
-        {
-            std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "does not exist!\n";
-            return 1;
-        }
-        std::error_code ec;
-        fs::copy(mout->dname_srcdir_orig, mout->dname_srcdir, ec);
-        if(ec)
-        {
-            std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "was not copied. Error " << ec.value() << ".\n";
-            return 1;
-        }
-    }
+    // //copy over source code to mitos output folder
+    // if (!mout->dname_srcdir_orig.empty())
+    // {
+    //     if(!fs::exists(mout->dname_srcdir_orig))
+    //     {
+    //         std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "does not exist!\n";
+    //         return 1;
+    //     }
+    //     std::error_code ec;
+    //     fs::copy(mout->dname_srcdir_orig, mout->dname_srcdir, ec);
+    //     if(ec)
+    //     {
+    //         std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "was not copied. Error " << ec.value() << ".\n";
+    //         return 1;
+    //     }
+    // }
 
-    mout->ok = true;
-
-    return 0;
-}
-
-int Mitos_pre_process(mitos_output *mout)
-{
-    // Create hardware topology file for current hardware
-    std::string fname_hardware = std::string(mout->dname_hwdatadir) + "/hwloc.xml";
-    int err = dump_hardware_xml(fname_hardware.c_str());
-    if(err)
-    {
-        std::cerr << "Mitos: Failed to create hardware topology file!\n";
-        return 1;
-    }
-
-    // hwloc puts the file in the current directory, need to move it
-    std::string fname_hardware_final = std::string(mout->dname_topdir) + "/hardware.xml";
-    err = rename(fname_hardware.c_str(), fname_hardware_final.c_str());
-    if(err)
-    {
-        std::cerr << "Mitos: Failed to move hardware topology file to output directory!\n";
-        return 1;
-    }
-
-    std::string fname_lshw = std::string(mout->dname_hwdatadir) + "/lshw.xml";
-    std::string lshw_cmd = "lshw -c memory -xml > " + fname_lshw;
-    err = system(lshw_cmd.c_str());
-    if(err)
-    {
-        std::cerr << "Mitos: Failed to create hardware topology file!\n";
-        return 1;
-    }
+    // mout->ok = true;
 
     return 0;
 }
 
-int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
-{
-    if(!mout->ok)
-        return 1;
 
-    Mitos_resolve_symbol(sample);
-  
-    fprintf(mout->fout_raw,
-            "%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu,",
-            sample->ip,
-            sample->data_symbol,
-            sample->data_size,
-            sample->num_dims,
-            sample->access_index[0],
-            sample->access_index[1],
-            sample->access_index[2],
-            sample->pid,
-            sample->tid,
-            sample->time,
-            sample->addr,
-            sample->cpu,
-            sample->weight);
-#if !defined(USE_IBS_FETCH) && !defined(USE_IBS_OP)
-    fprintf(mout->fout_raw,
-            "%s,%s,%s,%s,%s,",
-            sample->mem_lvl,
-            sample->mem_hit,
-            sample->mem_op,
-            sample->mem_snoop,
-            sample->mem_tlb);
-#endif            
-    fprintf(mout->fout_raw, "%d",
-            sample->numa_node);
-#ifdef USE_IBS_FETCH
-
-        fprintf(mout->fout_raw,
-                ",%u,%u,%u, %u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%lx,%lx,%lx",
-                sample->ibs_fetch_ctl.reg.ibs_fetch_max_cnt,
-                sample->ibs_fetch_ctl.reg.ibs_fetch_cnt,
-                sample->ibs_fetch_ctl.reg.ibs_fetch_lat,
-
-                sample->ibs_fetch_ctl.reg.ibs_fetch_en,
-                sample->ibs_fetch_ctl.reg.ibs_fetch_val,
-                sample->ibs_fetch_ctl.reg.ibs_fetch_comp,
-                sample->ibs_fetch_ctl.reg.ibs_ic_miss,
-                sample->ibs_fetch_ctl.reg.ibs_phy_addr_valid,
-                sample->ibs_fetch_ctl.reg.ibs_l1_tlb_pg_sz,
-                //ibs_l1_tlb_pg_size.c_str(),
-                sample->ibs_fetch_ctl.reg.ibs_l1_tlb_miss,
-                sample->ibs_fetch_ctl.reg.ibs_l2_tlb_miss,
-                sample->ibs_fetch_ctl.reg.ibs_rand_en,
-                sample->ibs_fetch_ctl.reg.ibs_fetch_l2_miss,
-
-                sample->ibs_fetch_lin,
-                sample->ibs_fetch_phy.reg.ibs_fetch_phy_addr,
-                sample->ibs_fetch_ext
-        );
-#endif // USE_IBS_FETCH
-#ifdef USE_IBS_OP
-        // op_ctl
-        fprintf(mout->fout_raw,
-                ",%u,%u,%u,%u,%u,%u,",
-                sample->ibs_op_ctl.reg.ibs_op_max_cnt,
-                sample->ibs_op_ctl.reg.ibs_op_en,
-                sample->ibs_op_ctl.reg.ibs_op_val,
-                sample->ibs_op_ctl.reg.ibs_op_cnt_ctl,
-                sample->ibs_op_ctl.reg.ibs_op_max_cnt_upper,
-                sample->ibs_op_ctl.reg.ibs_op_cur_cnt
-        );
-        // op_rip
-        fprintf(mout->fout_raw,
-                "%lx,", sample->ibs_op_rip);
-        // op_data_1
-        fprintf(mout->fout_raw,
-                "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,",
-                sample->ibs_op_data_1.reg.ibs_comp_to_ret_ctr,
-                sample->ibs_op_data_1.reg.ibs_tag_to_ret_ctr,
-                sample->ibs_op_data_1.reg.ibs_op_brn_resync,
-                sample->ibs_op_data_1.reg.ibs_op_misp_return,
-                sample->ibs_op_data_1.reg.ibs_op_return,
-                sample->ibs_op_data_1.reg.ibs_op_brn_taken,
-                sample->ibs_op_data_1.reg.ibs_op_brn_misp,
-                sample->ibs_op_data_1.reg.ibs_op_brn_ret,
-                sample->ibs_op_data_1.reg.ibs_rip_invalid,
-                sample->ibs_op_data_1.reg.ibs_op_brn_fuse,
-                sample->ibs_op_data_1.reg.ibs_op_microcode
-        );
-        // op_data_2
-        fprintf(mout->fout_raw,
-                "%u,%u,%u,",
-                sample->ibs_op_data_2.reg.ibs_nb_req_src,
-                sample->ibs_op_data_2.reg.ibs_nb_req_dst_node,
-                sample->ibs_op_data_2.reg.ibs_nb_req_cache_hit_st
-        );
-        // op_data_3
-        fprintf(mout->fout_raw,
-                "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,",
-                sample->ibs_op_data_3.reg.ibs_ld_op,
-                sample->ibs_op_data_3.reg.ibs_st_op,
-                sample->ibs_op_data_3.reg.ibs_dc_l1_tlb_miss,
-                sample->ibs_op_data_3.reg.ibs_dc_l2_tlb_miss,
-                sample->ibs_op_data_3.reg.ibs_dc_l1_tlb_hit_2m,
-                sample->ibs_op_data_3.reg.ibs_dc_l1_tlb_hit_1g,
-                sample->ibs_op_data_3.reg.ibs_dc_l2_tlb_hit_2m,
-                sample->ibs_op_data_3.reg.ibs_dc_miss,
-                sample->ibs_op_data_3.reg.ibs_dc_miss_acc,
-                sample->ibs_op_data_3.reg.ibs_dc_ld_bank_con,
-                sample->ibs_op_data_3.reg.ibs_dc_st_bank_con,
-                sample->ibs_op_data_3.reg.ibs_dc_st_to_ld_fwd,
-                sample->ibs_op_data_3.reg.ibs_dc_st_to_ld_can,
-                sample->ibs_op_data_3.reg.ibs_dc_wc_mem_acc,
-                sample->ibs_op_data_3.reg.ibs_dc_uc_mem_acc
-        );
-        fprintf(mout->fout_raw,
-                "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,",
-                sample->ibs_op_data_3.reg.ibs_dc_locked_op,
-                sample->ibs_op_data_3.reg.ibs_dc_no_mab_alloc,
-                sample->ibs_op_data_3.reg.ibs_lin_addr_valid,
-                sample->ibs_op_data_3.reg.ibs_phy_addr_valid,
-                sample->ibs_op_data_3.reg.ibs_dc_l2_tlb_hit_1g,
-                sample->ibs_op_data_3.reg.ibs_l2_miss,
-                sample->ibs_op_data_3.reg.ibs_sw_pf,
-                sample->ibs_op_data_3.reg.ibs_op_mem_width,
-                sample->ibs_op_data_3.reg.ibs_op_dc_miss_open_mem_reqs,
-                sample->ibs_op_data_3.reg.ibs_dc_miss_lat,
-                sample->ibs_op_data_3.reg.ibs_tlb_refill_lat
-        );
-        //phy, lin and brs target
-        fprintf(mout->fout_raw,
-                "%lx,%lx,%lx",
-                sample->ibs_op_phy.reg.ibs_dc_phys_addr,
-                sample->ibs_op_lin,
-                sample->ibs_op_brs_target
-        );
-#endif // USE_IBS_OP
-    fprintf(mout->fout_raw, "\n");
-    return 0;
-}
-
-void Mitos_write_samples_header(std::ofstream& fproc) {
+void demo_write_samples_header(std::ofstream& fproc) {
     // Write header for processed samples
     fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
 #if !defined(USE_IBS_FETCH) && !defined(USE_IBS_OP)
@@ -320,15 +157,11 @@ void Mitos_write_samples_header(std::ofstream& fproc) {
     fproc << "\n";
 }
 
-int Mitos_post_process(const char *bin_name, mitos_output *mout)
+int demo_openFile(const char *bin_name, mitos_output *mout)
 {
-    int err = 0;
-    fflush(mout->fout_raw); // flush raw samples stream before post processing starts
-
-    // Open input/output files
-    std::ifstream fraw(mout->fname_raw);
-    std::ofstream fproc(mout->fname_processed);
-    
+// Open input/output files
+std::ifstream fraw(mout->fname_raw);
+std::ofstream fproc(mout->fname_processed);
 #ifndef USE_DYNINST
     // No Dyninst, no post-processing
     err = rename(mout->fname_raw, mout->fname_processed);
@@ -341,12 +174,11 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     fraw.close();
 
     return 0;
-#else // USE_DYNINST
-    // Open Symtab object and code source object
-    SymtabAPI::Symtab *symtab_obj;
-    SymtabCodeSource *symtab_code_src;
-    
-    int sym_success = SymtabAPI::Symtab::openFile(symtab_obj,bin_name);
+#else // USE DYNINST
+
+    std::cout << "mitosoutput.cpp:352, bin_name: " << bin_name << "\n";
+    sym_success = SymtabAPI::Symtab::openFile(symtab_obj,bin_name);
+    std::cout << "mitosoutput.cpp:357, sym_success: " << sym_success <<"\n";
     if(!sym_success)
     {
         std::cerr << "Mitos: Failed to open Symtab object for " << bin_name << std::endl;
@@ -355,38 +187,44 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
         fraw.close();
         fproc.close();
 
-
-        err = rename(mout->fname_raw, mout->fname_processed);
+        int err = rename(mout->fname_raw, mout->fname_processed);
         if(err)
         {
             std::cerr << "Mitos: Failed to rename raw output to " << mout->fname_processed << std::endl;
         }
-
-
-
         return 1;
     }
-
+    //std::cout << "mitosoutput.cpp:370, openFile successful"<< "\n";
+    return 0;
+}
+int demo_post_process(const char *bin_name, mitos_output *mout)
+{
+    int err = 0;
+    // Open input/output files
+    std::cout <<"mout->fname_raw: " <<mout->fname_raw << "\n";
+    std::ifstream fraw(mout->fname_raw);
+    std::ofstream fproc(mout->fname_processed);
+    
     symtab_code_src = new SymtabCodeSource(strdup(bin_name));
 
     // Get machine information
     unsigned int inst_length = InstructionDecoder::maxInstructionLength;
     Architecture arch = symtab_obj->getArchitecture();
 
-    Mitos_write_samples_header(fproc);
+    demo_write_samples_header(fproc);
 
     //get base (.text) virtual address of the measured process
     //std::ifstream foffset("/u/home/vanecek/sshfs/sv_mitos/build/test3.txt");
     // TODO: Replace line
     std::ifstream foffset("/tmp/virt_address.txt");
     long long offsetAddr = 0;
-    string str_offset;
+    std::string str_offset;
     if(std::getline(foffset, str_offset).good())
     {
         offsetAddr = strtoll(str_offset.c_str(),NULL,0);
     }
     foffset.close();
-    cout << "offset: " << offsetAddr << endl;
+    std::cout << "offset: " << offsetAddr << std::endl;
 
     // Read raw samples one by one and get attribute from ip
     Dyninst::Offset ip;
@@ -408,7 +246,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
         std::string ip_str = line.substr(0,ip_endpos);
         ip = (Dyninst::Offset)(strtoull(ip_str.c_str(),NULL,0) - offsetAddr);
         if(tmp_line%4000==0)
-            cout << "ip: " << ip <<"\n";
+            std::cout << "ip: " << ip <<"\n";
         // Parse ip for source line info
         std::vector<SymtabAPI::Statement::Ptr> stats;
         sym_success = symtab_obj->getSourceLines(stats, ip);
@@ -475,7 +313,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
 }
 
 
-int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix) {
+int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix) {
     // find exact directory name for mpi_rank 0
     fs::path path_root{"."};
     bool first_dir_found = false;
@@ -489,6 +327,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     if(first_dir_found) {
         LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result");
     }else {
+        LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), First Dir not found");
         // error, directory not found
         return 1;
     }
@@ -541,4 +380,21 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     // TODO Copy Raw samples
     std::cout << "Merge successfully completed\n";
     return 0;
+}
+
+int main()
+{
+    std::cout <<"In main:\n";
+    process_mout(&mout1, "/u/home/mishrad/mitos-master/build/examples/1708705259_openmp_distr_mon_663246_1708705261");
+    process_mout(&mout2, "/u/home/mishrad/mitos-master/build/examples/1708705259_openmp_distr_mon_663265_1708705264");
+    demo_openFile("/u/home/mishrad/mitos-master/build/examples/matmul", &mout1);
+    std::cout << "demo.cpp:391, openFile successful\n";
+    std::cout <<"demo.cpp:392: mout->fname_raw: " <<mout1.fname_raw << "\n";
+    demo_post_process("/u/home/mishrad/mitos-master/build/examples/matmul", &mout1);
+    demo_post_process("/u/home/mishrad/mitos-master/build/examples/matmul", &mout2);
+    /* Examples:
+    dir:prefix: 1708705259_openmp_distr_mon, 
+    dir_first_dir_prefix: 1708705259_openmp_distr_mon_663246
+    */
+    demo_merge_files("1708705259_openmp_distr_mon", "1708705259_openmp_distr_mon_663246");
 }

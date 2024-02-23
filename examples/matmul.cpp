@@ -27,7 +27,11 @@ void init_matrices(int N, double **a, double **b, double **c)
 
 void matmul(int N, double *a, double *b, double *c)
 {
-#pragma omp parallel for
+#pragma omp parallel
+{
+    printf("Hello from thread %i of %i!\n", omp_get_thread_num(),
+               omp_get_num_threads());
+    #pragma omp for
     for(int i=0; i<N; ++i)
     {
         for(int j=0; j<N; ++j)
@@ -38,6 +42,7 @@ void matmul(int N, double *a, double *b, double *c)
             }
         }
     }
+}
 
     int randx = N*((float)rand() / (float)RAND_MAX+1);
     int randy = N*((float)rand() / (float)RAND_MAX+1);

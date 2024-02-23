@@ -178,6 +178,25 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     std::cout << "Begin sampling: " << getpid() << "\n";
 }
 
+static std::string getExecutableNameFromPID(pid_t pid) {
+    char buffer[1024];
+    std::memset(buffer, 0, sizeof(buffer));
+
+    // Create the path to the symbolic link
+    snprintf(buffer, sizeof(buffer), "/proc/%d/exe", pid);
+
+    // Read the symbolic link
+    ssize_t len = readlink(buffer, buffer, sizeof(buffer) - 1);
+
+    if (len != -1) {
+        buffer[len] = '\0';
+        return std::string(buffer);
+    } else {
+        // Handle error (e.g., process not found, insufficient permissions)
+        return "";
+    }
+}
+
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     uint64_t tid_omp = thread_data->value;
 #ifdef SYS_gettid
@@ -188,10 +207,9 @@ static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     LOG_MEDIUM("mitoshooks.cpp:on_ompt_callback_thread_end(), End Thread OMP:= " << getpid()
          << " tid= "  << tid << " omp_tid= "  << tid_omp );
     Mitos_end_sampler();
-    // /proc/self/exe
-    Mitos_post_process("", &mout);
-
-    std::cout << "Thread End\n";
+    fflush(mout.fout_raw); // flush raw samples stream before post processing starts
+    std::cout << "Flushed raw samples, Thread No.: "<< omp_get_thread_num() << "\n";
+    std::cout << "Thread End: "<< omp_get_thread_num() << "\n";
 }
 
 int ompt_initialize(ompt_function_lookup_t lookup, int initial_device_num,
@@ -224,17 +242,17 @@ void ompt_finalize(ompt_data_t *tool_data) {
 //    while(existing_threads != completed_threads_omp) {
 //
 //    }
-    Mitos_merge_files(std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
+    //Mitos_merge_files(std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
 }
 
 // only used for debugging purposes
-void test_symtab() {
-   SymtabAPI::Symtab *symtab_obj;
-   SymtabCodeSource *symtab_code_src;
-   std::cout << "Symtab: Open File..." << "\n";
-   int sym_success = SymtabAPI::Symtab::openFile(symtab_obj,"/proc/self/exe");
-   std::cout << "Completed: " << sym_success << "\n";
-}
+// void test_symtab() {
+//    SymtabAPI::Symtab *symtab_obj;
+//    SymtabCodeSource *symtab_code_src;
+//    std::cout << "Symtab: Open File..." << "\n";
+//    int sym_success = SymtabAPI::Symtab::openFile(symtab_obj,"/proc/self/exe");
+//    std::cout << "Completed: " << sym_success << "\n";
+// }
 
 #ifdef __cplusplus
 extern "C" {

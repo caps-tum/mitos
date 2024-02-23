@@ -8,17 +8,18 @@ set(MITOS_HDR_FILES procsmpl.h mmap_processor.h mattr.h Mitos.h)
 set(MITOS_HDR_PUBLIC Mitos.h)
 set(MITOSHOOKS_SRC_FILES mitoshooks.cpp)
 
-
 # Libraries (created)
 add_library(mitos SHARED ${MITOS_SRC_FILES})
 add_library(mitoshooks SHARED ${MITOSHOOKS_SRC_FILES} ${MITOS_SRC_FILES})
 
 # Binaries
 add_executable(mitosrun mitosrun.cpp)
+add_executable(demo_post_process demo.cpp)
 
 # Linkage
 target_link_libraries(mitos mitoshooks numa hwloc ${CMAKE_THREAD_LIBS_INIT} stdc++fs)
 target_link_libraries(mitosrun mitos)
+target_link_libraries(demo_post_process mitos common)
 target_link_libraries(mitoshooks dl)
 
 if(MPI_FOUND)
@@ -36,6 +37,9 @@ install(FILES ${MITOS_HDR_PUBLIC}
 install(TARGETS mitosrun
         EXPORT mitos-targets
         DESTINATION bin)
+install(TARGETS demo_post_process
+        EXPORT mitos-targets
+        DESTINATION bin) 
 install(TARGETS mitos
         EXPORT mitos-targets
         DESTINATION lib)

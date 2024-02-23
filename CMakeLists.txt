@@ -70,6 +70,7 @@ endif()
 # C-Defines for non-essential packages
 if(MPI_FOUND)
     add_definitions(-DUSE_MPI)
+    message(STATUS "Mitoshooks MPI Enabled")
 endif()
 
 
