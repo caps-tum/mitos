@@ -9,8 +9,9 @@
 #include "hwloc_dump.h"
 
 #include "Mitos.h"
-
+#include <vector>
 #include <cstdlib>
+#include <omp.h>
 
 #ifndef __has_include
 static_assert(false, "__has_include not supported");
@@ -42,10 +43,45 @@ using namespace ParseAPI;
 
 using namespace std;
 static mitos_output mout1, mout2;
+static std::vector<mitos_output> mouts;
 SymtabAPI::Symtab *symtab_obj;
 SymtabCodeSource *symtab_code_src;
 int sym_success = 0;
 
+int populate_dirs(std::vector<std::string> &output_dirs, const std::string& dir_prefix, const std::string& dir_first_dir_prefix)
+{
+    fs::path path_root{"."};
+    bool first_dir_found = false;
+    std::string path_first_dir{""};
+    for (auto const& dir_entry : std::filesystem::directory_iterator{path_root}) {
+        if (dir_entry.path().u8string().rfind("./" + dir_first_dir_prefix) == 0) {
+            path_first_dir = dir_entry.path().u8string();
+            first_dir_found = true;
+        }
+    }
+    if(first_dir_found) {
+        LOG_LOW("demo.cpp:populate_dirs, First Dir Found: " << path_first_dir);
+        output_dirs.push_back("/u/home/mishrad/mitos/inst-dir/bin"+ path_first_dir.substr(1));
+    }else {
+        LOG_LOW("demo.cpp:populate_dirs, First Dir not found");
+        // error, directory not found
+        return 1;
+    }
+    std::string path_dir_result = "./"+ dir_prefix + "result";
+    // for other directories, copy samples to dest dir
+    for (auto const& dir_entry : std::filesystem::directory_iterator{path_root})
+    {
+        if (dir_entry.path().u8string().rfind("./"+ dir_prefix) == 0
+        && dir_entry.path().u8string() != path_first_dir
+        && dir_entry.path().u8string() != path_dir_result) {
+            //std::cout << "dir_entry.path(): " <<  dir_entry.path() <<"\n";
+            LOG_LOW("demo.cpp:populate_dirs, Directory found " << dir_entry.path());
+            output_dirs.push_back("/u/home/mishrad/mitos/inst-dir/bin" + std::string(dir_entry.path()).substr(1));
+        }
+    } // END LOOP
+
+    return 0;
+}
 int process_mout(mitos_output *mout, const char *prefix_name)
 {
     memset(mout,0,sizeof(struct mitos_output));
@@ -71,55 +107,8 @@ int process_mout(mitos_output *mout, const char *prefix_name)
     ss_dname_hwdatadir << ss_dname_topdir.str() << "/hwdata";
     mout->dname_hwdatadir = strdup(ss_dname_hwdatadir.str().c_str());
 
-    // // Create the directories
-    // int err;
-    // err = mkdir(mout->dname_topdir,0777);
-    // err |= mkdir(mout->dname_datadir,0777);
-    // err |= mkdir(mout->dname_srcdir,0777);
-    // err |= mkdir(mout->dname_hwdatadir,0777);
-
-    // if(err)
-    // {
-    //     std::cerr << "Mitos: Failed to create output directories!\n";
-    //     return 1;
-    // }
-
-    // // Create file for raw sample output
     mout->fname_raw = strdup(std::string(std::string(mout->dname_datadir) + "/raw_samples.csv").c_str());
-    //mout->fout_raw = fopen(mout->fname_raw,"r");
-    // if(!mout->fout_raw)
-    // {
-    //     std::cerr << "Mitos: Failed to create raw output file!\n";
-    //     return 1;
-    // }
-
-    // // Create file for processed sample output
     mout->fname_processed = strdup(std::string(std::string(mout->dname_datadir) + "/samples.csv").c_str());
-    //mout->fout_processed = fopen(mout->fname_processed,"");
-    // if(!mout->fout_processed)
-    // {
-    //     std::cerr << "Mitos: Failed to create processed output file!\n";
-    //     return 1;
-    // }
-
-    // //copy over source code to mitos output folder
-    // if (!mout->dname_srcdir_orig.empty())
-    // {
-    //     if(!fs::exists(mout->dname_srcdir_orig))
-    //     {
-    //         std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "does not exist!\n";
-    //         return 1;
-    //     }
-    //     std::error_code ec;
-    //     fs::copy(mout->dname_srcdir_orig, mout->dname_srcdir, ec);
-    //     if(ec)
-    //     {
-    //         std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "was not copied. Error " << ec.value() << ".\n";
-    //         return 1;
-    //     }
-    // }
-
-    // mout->ok = true;
 
     return 0;
 }
@@ -176,9 +165,9 @@ std::ofstream fproc(mout->fname_processed);
     return 0;
 #else // USE DYNINST
 
-    std::cout << "mitosoutput.cpp:352, bin_name: " << bin_name << "\n";
+    std::cout << "demo.cpp, demo_openFile(), bin_name: " << bin_name << "\n";
     sym_success = SymtabAPI::Symtab::openFile(symtab_obj,bin_name);
-    std::cout << "mitosoutput.cpp:357, sym_success: " << sym_success <<"\n";
+    std::cout << "demo.cpp, demo_openFile(), sym_success: " << sym_success <<"\n";
     if(!sym_success)
     {
         std::cerr << "Mitos: Failed to open Symtab object for " << bin_name << std::endl;
@@ -194,7 +183,6 @@ std::ofstream fproc(mout->fname_processed);
         }
         return 1;
     }
-    //std::cout << "mitosoutput.cpp:370, openFile successful"<< "\n";
     return 0;
 }
 int demo_post_process(const char *bin_name, mitos_output *mout)
@@ -231,7 +219,7 @@ int demo_post_process(const char *bin_name, mitos_output *mout)
     size_t ip_endpos;
     std::string line, ip_str;
     int tmp_line = 0;
-    LOG_MEDIUM("mitosoutput.cpp:Mitos_post_process(), reading raw samples...");
+    LOG_MEDIUM("demo.cpp:demo_post_process(), reading raw samples...");
 
     while(std::getline(fraw, line).good())
     {
@@ -286,7 +274,7 @@ int demo_post_process(const char *bin_name, mitos_output *mout)
                     bytes << getReadSize(inst);
             }
         }
-        LOG_HIGH("mitosoutput.cpp:Mitos_post_process(), writing out sample no. " << tmp_line + 1);
+        LOG_HIGH("demo.cpp:demo_post_process(), writing out sample no. " << tmp_line + 1);
         // Write out the sample
         fproc << (source.empty()            ? "??" : source             ) << ","
               << (line_num.str().empty()    ? "??" : line_num.str()     ) << ","
@@ -325,9 +313,9 @@ int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first
         }
     }
     if(first_dir_found) {
-        LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result");
+        LOG_LOW("demo.cpp:demo_merge_files(), First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result");
     }else {
-        LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), First Dir not found");
+        LOG_LOW("demo.cpp:demo_merge_files(), First Dir not found");
         // error, directory not found
         return 1;
     }
@@ -353,7 +341,7 @@ int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first
             if (dir_entry.path().u8string().rfind("./"+ dir_prefix) == 0
             && dir_entry.path().u8string() != path_first_dir
             && dir_entry.path().u8string() != path_dir_result) {
-                LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), Move Data " << dir_entry.path() << " to Result Folder...");
+                LOG_LOW("demo.cpp:demo_merge_files(), Move Data " << dir_entry.path() << " to Result Folder...");
                 // src file
                 std::string path_samples_src = dir_entry.path().u8string() + "/data/samples.csv";
                 if (fs::exists(path_samples_src)) {
@@ -385,16 +373,34 @@ int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first
 int main()
 {
     std::cout <<"In main:\n";
-    process_mout(&mout1, "/u/home/mishrad/mitos-master/build/examples/1708705259_openmp_distr_mon_663246_1708705261");
-    process_mout(&mout2, "/u/home/mishrad/mitos-master/build/examples/1708705259_openmp_distr_mon_663265_1708705264");
-    demo_openFile("/u/home/mishrad/mitos-master/build/examples/matmul", &mout1);
+    std::vector<std::string> output_dirs;
+    output_dirs.reserve(omp_get_num_threads());
+    //Implement using lambda
+    populate_dirs(output_dirs, "1708963365_openmp_distr_mon", "1708963365_openmp_distr_mon_271202");
+    mouts.resize(output_dirs.size());
+    std::cout << "Printing dirs name:\n";
+    for (auto i = 0; i <output_dirs.size(); i++){
+        std::cout<<output_dirs[i] << "\n";
+    }
+    for (auto i = 0; i < output_dirs.size(); i++){
+        process_mout(&mouts[i], output_dirs[i].c_str());    
+    }
+    //process_mout(&mout1, "/u/home/mishrad/mitos/build/examples/1708712562_openmp_distr_mon_247616_1708712562");
+    //process_mout(&mout2, "/u/home/mishrad/mitos/build/examples/1708712562_openmp_distr_mon_247619_1708712563");
+    
+    demo_openFile("/u/home/mishrad/mitos/inst-dir/bin/lulesh2.0", &mouts[0]);
     std::cout << "demo.cpp:391, openFile successful\n";
-    std::cout <<"demo.cpp:392: mout->fname_raw: " <<mout1.fname_raw << "\n";
-    demo_post_process("/u/home/mishrad/mitos-master/build/examples/matmul", &mout1);
-    demo_post_process("/u/home/mishrad/mitos-master/build/examples/matmul", &mout2);
+    std::cout <<"demo.cpp:392: mout->fname_raw: " <<mouts[0].fname_raw << "\n";
+    
+    //std::string bin_name = "/u/home/mishrad/mitos/build/examples/matmul";
+    for (auto i = 0; i < output_dirs.size(); i++){
+       demo_post_process("/u/home/mishrad/mitos/inst-dir/bin/lulesh2.0", &mouts[i]);
+    }
+    //demo_post_process("/u/home/mishrad/mitos/build/examples/matmul", &mout1);
+    //demo_post_process("/u/home/mishrad/mitos/build/examples/matmul", &mout2);
     /* Examples:
     dir:prefix: 1708705259_openmp_distr_mon, 
     dir_first_dir_prefix: 1708705259_openmp_distr_mon_663246
     */
-    demo_merge_files("1708705259_openmp_distr_mon", "1708705259_openmp_distr_mon_663246");
+    demo_merge_files("1708963365_openmp_distr_mon", "1708963365_openmp_distr_mon_271202");
 }
