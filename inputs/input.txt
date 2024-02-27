@@ -1,0 +1,4 @@
+bin_name = /u/home/mishrad/mitos-master/inst-dir/bin/lulesh2.0
+dir_path = /u/home/mishrad/mitos-master/inst-dir/bin
+dir_prefix = 1709056761_openmp_distr_mon
+dir_first_dir_prefix = 1709056761_openmp_distr_mon_734783

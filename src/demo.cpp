@@ -48,7 +48,113 @@ SymtabAPI::Symtab *symtab_obj;
 SymtabCodeSource *symtab_code_src;
 int sym_success = 0;
 
-int populate_dirs(std::vector<std::string> &output_dirs, const std::string& dir_prefix, const std::string& dir_first_dir_prefix)
+void openInputFile (std::ifstream &inputFile, std::string &bin_name, std::string &dir_path,
+            std::string &dir_prefix, std::string &dir_first_dir_prefix);
+
+int populate_dirs(std::vector<std::string> &output_dirs, const std::string& dir_path, 
+            const std::string& dir_prefix, const std::string& dir_first_dir_prefix);
+
+int process_mout(mitos_output *mout, const char *prefix_name);
+
+void demo_write_samples_header(std::ofstream& fproc);
+
+int demo_openFile(const char *bin_name, mitos_output *mout);
+
+int demo_post_process(const char *bin_name, mitos_output *mout);
+
+int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix);
+
+int main(int argc, char* argv[])
+{
+    // Check if input file is provided as command-line argument
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <input_file>\n";
+        return 1;
+    }
+
+    // Open the input file
+    std::ifstream inputFile(argv[1]);
+
+    // Check if the file is opened successfully
+    if (!inputFile.is_open()) {
+        std::cerr << "Error opening file\n";
+        return 1;
+    }
+
+    // Variables to store values
+    std::string bin_name, dir_path, dir_prefix, dir_first_dir_prefix;
+    openInputFile(inputFile, bin_name, dir_path,
+            dir_prefix, dir_first_dir_prefix);
+    
+    // Output the variables
+    std::cout << "bin_name: " << bin_name << '\n';
+    std::cout << "dir_path: " << dir_path << '\n';
+    std::cout << "dir_prefix: " << dir_prefix << '\n';
+    std::cout << "dir_first_dir_prefix: " << dir_first_dir_prefix << '\n';
+    std::vector<std::string> output_dirs;
+    output_dirs.reserve(omp_get_num_threads());
+    
+    //Implement using lambda
+    populate_dirs(output_dirs, dir_path, dir_prefix, dir_first_dir_prefix);
+    mouts.resize(output_dirs.size());
+    std::cout << "Printing dirs name:\n";
+    for (auto i = 0; i <output_dirs.size(); i++){
+        std::cout<<output_dirs[i] << "\n";
+    }
+    for (auto i = 0; i < output_dirs.size(); i++){
+        process_mout(&mouts[i], output_dirs[i].c_str());    
+    }
+
+    demo_openFile(bin_name.c_str(), &mouts[0]);
+    
+    for (auto i = 0; i < output_dirs.size(); i++){
+       demo_post_process(bin_name.c_str(), &mouts[i]);
+    }
+
+    /* Examples:
+    dir:prefix: 1708705259_openmp_distr_mon, 
+    dir_first_dir_prefix: 1708705259_openmp_distr_mon_663246
+    */
+    demo_merge_files(dir_prefix, dir_first_dir_prefix);
+}
+
+void openInputFile (std::ifstream &inputFile, std::string &bin_name, std::string &dir_path,
+            std::string &dir_prefix, std::string &dir_first_dir_prefix){
+    std::string line;
+    while (std::getline(inputFile, line)) {
+        // Find the position of '=' character
+        size_t pos = line.find('=');
+        if (pos != std::string::npos) {
+            // Extract variable name and value
+            std::string variableName = line.substr(0, pos);
+            std::string value = line.substr(pos + 1);
+
+            // Remove leading/trailing spaces from variable name and value
+            size_t start = variableName.find_first_not_of(" \t");
+            size_t end = variableName.find_last_not_of(" \t");
+            if (start != std::string::npos && end != std::string::npos)
+                variableName = variableName.substr(start, end - start + 1);
+
+            start = value.find_first_not_of(" \t");
+            end = value.find_last_not_of(" \t");
+            if (start != std::string::npos && end != std::string::npos)
+                value = value.substr(start, end - start + 1);
+
+            // Store values in respective variables
+            if (variableName == "bin_name")
+                bin_name = value;
+            else if (variableName == "dir_path")
+                dir_path = value;
+            else if (variableName == "dir_prefix")
+                dir_prefix = value;
+            else if (variableName == "dir_first_dir_prefix")
+                dir_first_dir_prefix = value;
+        }
+    }
+}
+
+
+int populate_dirs(std::vector<std::string> &output_dirs, const std::string& dir_path, const std::string& dir_prefix, const std::string& dir_first_dir_prefix)
 {
     fs::path path_root{"."};
     bool first_dir_found = false;
@@ -61,7 +167,8 @@ int populate_dirs(std::vector<std::string> &output_dirs, const std::string& dir_
     }
     if(first_dir_found) {
         LOG_LOW("demo.cpp:populate_dirs, First Dir Found: " << path_first_dir);
-        output_dirs.push_back("/u/home/mishrad/mitos/inst-dir/bin"+ path_first_dir.substr(1));
+        //output_dirs.push_back("/u/home/mishrad/mitos-master/inst-dir/bin"+ path_first_dir.substr(1));
+        output_dirs.push_back(dir_path+ path_first_dir.substr(1));
     }else {
         LOG_LOW("demo.cpp:populate_dirs, First Dir not found");
         // error, directory not found
@@ -76,7 +183,8 @@ int populate_dirs(std::vector<std::string> &output_dirs, const std::string& dir_
         && dir_entry.path().u8string() != path_dir_result) {
             //std::cout << "dir_entry.path(): " <<  dir_entry.path() <<"\n";
             LOG_LOW("demo.cpp:populate_dirs, Directory found " << dir_entry.path());
-            output_dirs.push_back("/u/home/mishrad/mitos/inst-dir/bin" + std::string(dir_entry.path()).substr(1));
+            // output_dirs.push_back("/u/home/mishrad/mitos-master/inst-dir/bin" + std::string(dir_entry.path()).substr(1));
+            output_dirs.push_back( dir_path + std::string(dir_entry.path()).substr(1));
         }
     } // END LOOP
 
@@ -185,6 +293,8 @@ std::ofstream fproc(mout->fname_processed);
     }
     return 0;
 }
+
+
 int demo_post_process(const char *bin_name, mitos_output *mout)
 {
     int err = 0;
@@ -365,42 +475,6 @@ int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first
         } // END LOOP
         file_samples_out.close();
     }
-    // TODO Copy Raw samples
     std::cout << "Merge successfully completed\n";
     return 0;
-}
-
-int main()
-{
-    std::cout <<"In main:\n";
-    std::vector<std::string> output_dirs;
-    output_dirs.reserve(omp_get_num_threads());
-    //Implement using lambda
-    populate_dirs(output_dirs, "1708963365_openmp_distr_mon", "1708963365_openmp_distr_mon_271202");
-    mouts.resize(output_dirs.size());
-    std::cout << "Printing dirs name:\n";
-    for (auto i = 0; i <output_dirs.size(); i++){
-        std::cout<<output_dirs[i] << "\n";
-    }
-    for (auto i = 0; i < output_dirs.size(); i++){
-        process_mout(&mouts[i], output_dirs[i].c_str());    
-    }
-    //process_mout(&mout1, "/u/home/mishrad/mitos/build/examples/1708712562_openmp_distr_mon_247616_1708712562");
-    //process_mout(&mout2, "/u/home/mishrad/mitos/build/examples/1708712562_openmp_distr_mon_247619_1708712563");
-    
-    demo_openFile("/u/home/mishrad/mitos/inst-dir/bin/lulesh2.0", &mouts[0]);
-    std::cout << "demo.cpp:391, openFile successful\n";
-    std::cout <<"demo.cpp:392: mout->fname_raw: " <<mouts[0].fname_raw << "\n";
-    
-    //std::string bin_name = "/u/home/mishrad/mitos/build/examples/matmul";
-    for (auto i = 0; i < output_dirs.size(); i++){
-       demo_post_process("/u/home/mishrad/mitos/inst-dir/bin/lulesh2.0", &mouts[i]);
-    }
-    //demo_post_process("/u/home/mishrad/mitos/build/examples/matmul", &mout1);
-    //demo_post_process("/u/home/mishrad/mitos/build/examples/matmul", &mout2);
-    /* Examples:
-    dir:prefix: 1708705259_openmp_distr_mon, 
-    dir_first_dir_prefix: 1708705259_openmp_distr_mon_663246
-    */
-    demo_merge_files("1708963365_openmp_distr_mon", "1708963365_openmp_distr_mon_271202");
 }
