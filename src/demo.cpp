@@ -12,6 +12,7 @@
 #include <vector>
 #include <cstdlib>
 #include <omp.h>
+#include <set>
 
 #ifndef __has_include
 static_assert(false, "__has_include not supported");
@@ -60,9 +61,9 @@ void demo_write_samples_header(std::ofstream& fproc);
 
 int demo_openFile(const char *bin_name, mitos_output *mout);
 
-int demo_post_process(const char *bin_name, mitos_output *mout);
+int demo_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files);
 
-int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix);
+int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix, const std::set<std::string>& src_files);
 
 int main(int argc, char* argv[])
 {
@@ -107,15 +108,22 @@ int main(int argc, char* argv[])
 
     demo_openFile(bin_name.c_str(), &mouts[0]);
     
+    std::set<std::string> src_files;
+
     for (auto i = 0; i < output_dirs.size(); i++){
-       demo_post_process(bin_name.c_str(), &mouts[i]);
+       demo_post_process(bin_name.c_str(), &mouts[i], src_files);
+    }
+
+    std::cout << "Following source files found:\n";
+    for (auto& str : src_files) {
+        std::cout << str << "\n";
     }
 
     /* Examples:
     dir:prefix: 1708705259_openmp_distr_mon, 
     dir_first_dir_prefix: 1708705259_openmp_distr_mon_663246
     */
-    demo_merge_files(dir_prefix, dir_first_dir_prefix);
+    demo_merge_files(dir_prefix, dir_first_dir_prefix, src_files);
 }
 
 void openInputFile (std::ifstream &inputFile, std::string &bin_name, std::string &dir_path,
@@ -294,8 +302,7 @@ std::ofstream fproc(mout->fname_processed);
     return 0;
 }
 
-
-int demo_post_process(const char *bin_name, mitos_output *mout)
+int demo_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files)
 {
     int err = 0;
     // Open input/output files
@@ -362,6 +369,9 @@ int demo_post_process(const char *bin_name, mitos_output *mout)
             }
             line_num << stats[0]->getLine();
         }
+        if(!source.empty()){
+            src_files.insert(source);
+        }
 
         // Parse ip for instruction info
         void *inst_raw = NULL;
@@ -411,7 +421,7 @@ int demo_post_process(const char *bin_name, mitos_output *mout)
 }
 
 
-int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix) {
+int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix, const std::set<std::string>& src_files) {
     // find exact directory name for mpi_rank 0
     fs::path path_root{"."};
     bool first_dir_found = false;
@@ -475,6 +485,26 @@ int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first
         } // END LOOP
         file_samples_out.close();
     }
+    // copy source files
+
+    std::cout << "Copying source files to result folder...\n";
+    std::string path_src_dir = path_dir_result + "/src";
+    for (auto& src_file : src_files) {
+        try {
+            // Check if source file exists
+            if (!fs::exists(src_file)) {
+                std::cerr << "Source file not accessible: " << src_file << "\n";
+            }
+
+            // Copy the file
+            fs::copy(src_file, path_src_dir);
+
+            std::cout << "File copied successfully." << "\n";
+        } catch (const std::exception& ex) {
+            std::cerr << "Error: " << ex.what() << "\n";
+        }   
+    }
+    
     std::cout << "Merge successfully completed\n";
     return 0;
 }
