@@ -27,10 +27,10 @@ Mitos requires:
 
 2. Run the following commands from the root of the MemAxes source:
    ```bash
-   mkdir build && cd build
-   cmake -DCMAKE_INSTALL_PREFIX=/path/to/install/location ..
-   make
-   make install
+   $> mkdir build && cd build
+   $> cmake -DCMAKE_INSTALL_PREFIX=/path/to/install/location ..
+   $> make
+   $> make install
    ```
 
 ## Running
@@ -43,15 +43,15 @@ Mitos requires:
 2. Make sure that the path to the installation location of `mitos` and `Dyninst` is added to the `LD_LIBRARY_PATH`. For example:
 
    ```bash
-   export LD_LIBRARY_PATH=/path/to/mitos/install/location/lib/
-   export LD_LIBRARY_PATH=/path/to/dyninst/lib/:$LD_LIBRARY_PATH
+   $> export LD_LIBRARY_PATH=/path/to/mitos/install/location/lib/
+   $> export LD_LIBRARY_PATH=/path/to/dyninst/lib/:$LD_LIBRARY_PATH
    ```
 
 3. Run any binary with `mitosrun` like this to generate a folder of
    mitos output data. For example:
 
    ```bash
-   mitosrun ./examples/matmul
+   $> mitosrun ./examples/matmul
    ```
 
    The above command will run the matmul example and create a folder
@@ -81,6 +81,7 @@ Mitos requires:
        -t sample latency threshold (default 10)
        -s top folder of source code to copy
    ```
+   **See the section on `Source Code Attribution` below for more details on how to save the source code information with the samples collected while running your application.**
 
 ## IBS (AMD) Configuration
 The default installation of `mitos` will be configured for Intel based Precise Event Based Sampling (PEBS). Additionally, `mitos` supports AMD based Instruction Based Sampling (IBS). Configure CMAKE with IBS depending on the chosen executable and configure environment variables if necessary:
@@ -98,19 +99,63 @@ The default installation of `mitos` will be configured for Intel based Precise E
   * NOTE: `IBS_ALL_ON` might also work, but this sampling method is not recommended.
 
 ## Mitoshooks with OpenMP Usage
-1. Requirements
-   * Compiler with OMPT support such as Clang (OpenMP feature since version 5.0)
-2. CMake Configuration
-   * OpenMP found
-   * `MITOSHOOKS_OPEN_MP`: ON
-3. Compilation
-   * Compilation of Mitoshooks library
-   * Compilation of OpenMP-application
-4. Execution
-   * Configuration of environment variable `OMP_TOOL_LIBRARIES` that points to mitoshooks-library:
-       * e.g. for omp_example.cpp: OMP_TOOL_LIBRARIES=./../src/libmitoshooks.so
-   * Launch OpenMP-application
-     * ./omp_example
+### 1. Requirements
+
+   Compiler with OMPT support such as Clang (OpenMP feature since version 5.0) is required. if clang is not the default compiler:
+   
+   ```bash
+   $> export CC=/path/to/clang*
+   $> export CXX=/path/to/clang++*
+   ```
+### 2. CMake Configuration
+   
+   OpenMP (version 5.0 and later) must be installed. If OpenMP is not installed at the default loaction, make sure to specify the paths so that `cmake` finds it.
+   
+   Enable `MITOSHOOKS_OPEN_MP` option by `-DMITOSHOOKS_OPEN_MP=ON`
+
+### 3. Compilation
+   * Build and install `mitos` and `mitoshooks`
+   * Depending on the build method (cmake/make/command-line), link the application with `mitos` and `mitoshooks` by specifying their paths.
+   * See the section on `Source Code Attribution` below for more details on how to save the source code information with the samples collected while running your application.
+   
+### 4. Execution
+   
+   Mitoshooks uses the OMPT interface to collect samples while each thread runs. Configure the environment variable `OMP_TOOL_LIBRARIES` that points to mitoshooks-library and use one of these methods to launch the OpenMP-application.
+
+   **Recommended method:** 
+   ```bash
+   $> env OMP_TOOL_LIBRARIES=/path/to/mitos-inst-dir/lib/libmitoshooks.so ./omp_example
+   ```
+   ***The following method should also work but is not recommended. Exporting the variable `OMP_TOOL_LIBRARIES` for the global enviornment may break other OpenMP applications that do not intend to use hooks.***
+   ```bash
+   $> export OMP_TOOL_LIBRARIES=/path/to/mitos-inst-dir/lib/libmitoshooks.so 
+   
+   $> ./omp_example
+   ```
+   `Mitoshooks` can be fine-tuned by setting these parameters:
+
+   ```bash
+   env MITOS_SAMPLING_PERIOD=1000 MITOS_LATENCY_THRESHOLD=10
+   ```
+   Default value of sampling period is 4000 and that of sample latency threshold is 3. When setting these values, the application can be executed by:
+
+   ```bash
+   $> env OMP_TOOL_LIBRARIES=/path/to/mitos-inst-dir/lib/libmitoshooks.so MITOS_SAMPLING_PERIOD=1000 MITOS_LATENCY_THRESHOLD=10 ./omp_example
+   ```
+
+# Source Code Attribution
+
+## Requirements
+* [Dyninst](http://www.dyninst.org) version 12.3.0 or higher.
+* The application must be compiled in Debug mode (only `-g` compiler flag sufficient).
+
+## Saving the virtual address
+
+The source code of the executable must save the virtual addess offset when the executable starts runnnig. This can be done by including the [virtual_address_writer.h](src/virtual_address_writer.h) and calling the function [save_virtual_address_offset("virt_address.txt")](src/virtual_address_writer.h#L18).
+
+See [matmul.cpp](examples/matmul.cpp) for reference.
+
+This saves the virtual address offset to `/tmp/virt_address.txt`. Dyninst will access this file and attribute the source code information when the samples are saved.
 
 # Authors
 
