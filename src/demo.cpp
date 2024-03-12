@@ -43,17 +43,13 @@ using namespace ParseAPI;
 #endif // USE_DYNINST
 
 using namespace std;
-static mitos_output mout1, mout2;
-static std::vector<mitos_output> mouts;
+static mitos_output mouts;
 SymtabAPI::Symtab *symtab_obj;
 SymtabCodeSource *symtab_code_src;
 int sym_success = 0;
 
 void openInputFile (std::ifstream &inputFile, std::string &bin_name, std::string &dir_path,
-            std::string &dir_prefix, std::string &dir_first_dir_prefix);
-
-int populate_dirs(std::vector<std::string> &output_dirs, const std::string& dir_path, 
-            const std::string& dir_prefix, const std::string& dir_first_dir_prefix);
+            std::string &dir_prefix);
 
 int process_mout(mitos_output *mout, const char *prefix_name);
 
@@ -63,7 +59,7 @@ int demo_openFile(const char *bin_name, mitos_output *mout);
 
 int demo_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files);
 
-int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix, const std::set<std::string>& src_files);
+int copy_source_files(const std::string& dir_prefix, const std::set<std::string>& src_files);
 
 int main(int argc, char* argv[])
 {
@@ -83,36 +79,22 @@ int main(int argc, char* argv[])
     }
 
     // Variables to store values
-    std::string bin_name, dir_path, dir_prefix, dir_first_dir_prefix;
+    std::string bin_name, dir_path, dir_prefix;
     openInputFile(inputFile, bin_name, dir_path,
-            dir_prefix, dir_first_dir_prefix);
+            dir_prefix);
     
     // Output the variables
     std::cout << "bin_name: " << bin_name << '\n';
     std::cout << "dir_path: " << dir_path << '\n';
     std::cout << "dir_prefix: " << dir_prefix << '\n';
-    std::cout << "dir_first_dir_prefix: " << dir_first_dir_prefix << '\n';
-    std::vector<std::string> output_dirs;
-    output_dirs.reserve(omp_get_num_threads());
+    std::string output_dirs = dir_path + std::string("/") + dir_prefix;
     
-    //Implement using lambda
-    populate_dirs(output_dirs, dir_path, dir_prefix, dir_first_dir_prefix);
-    mouts.resize(output_dirs.size());
-    std::cout << "Printing dirs name:\n";
-    for (auto i = 0; i <output_dirs.size(); i++){
-        std::cout<<output_dirs[i] << "\n";
-    }
-    for (auto i = 0; i < output_dirs.size(); i++){
-        process_mout(&mouts[i], output_dirs[i].c_str());    
-    }
-
-    demo_openFile(bin_name.c_str(), &mouts[0]);
+    process_mout(&mouts, output_dirs.c_str());    
+    demo_openFile(bin_name.c_str(), &mouts);
     
     std::set<std::string> src_files;
 
-    for (auto i = 0; i < output_dirs.size(); i++){
-       demo_post_process(bin_name.c_str(), &mouts[i], src_files);
-    }
+    demo_post_process(bin_name.c_str(), &mouts, src_files);
 
     std::cout << "Following source files found:\n";
     for (auto& str : src_files) {
@@ -120,14 +102,13 @@ int main(int argc, char* argv[])
     }
 
     /* Examples:
-    dir:prefix: 1708705259_openmp_distr_mon, 
-    dir_first_dir_prefix: 1708705259_openmp_distr_mon_663246
+    dir:prefix: 1708705259_openmp_distr_monresult
     */
-    demo_merge_files(dir_prefix, dir_first_dir_prefix, src_files);
+    copy_source_files(dir_prefix, src_files);
 }
 
 void openInputFile (std::ifstream &inputFile, std::string &bin_name, std::string &dir_path,
-            std::string &dir_prefix, std::string &dir_first_dir_prefix){
+            std::string &dir_prefix){
     std::string line;
     while (std::getline(inputFile, line)) {
         // Find the position of '=' character
@@ -155,49 +136,10 @@ void openInputFile (std::ifstream &inputFile, std::string &bin_name, std::string
                 dir_path = value;
             else if (variableName == "dir_prefix")
                 dir_prefix = value;
-            else if (variableName == "dir_first_dir_prefix")
-                dir_first_dir_prefix = value;
         }
     }
 }
 
-
-int populate_dirs(std::vector<std::string> &output_dirs, const std::string& dir_path, const std::string& dir_prefix, const std::string& dir_first_dir_prefix)
-{
-    fs::path path_root{"."};
-    bool first_dir_found = false;
-    std::string path_first_dir{""};
-    for (auto const& dir_entry : std::filesystem::directory_iterator{path_root}) {
-        if (dir_entry.path().u8string().rfind("./" + dir_first_dir_prefix) == 0) {
-            path_first_dir = dir_entry.path().u8string();
-            first_dir_found = true;
-        }
-    }
-    if(first_dir_found) {
-        LOG_LOW("demo.cpp:populate_dirs, First Dir Found: " << path_first_dir);
-        //output_dirs.push_back("/u/home/mishrad/mitos-master/inst-dir/bin"+ path_first_dir.substr(1));
-        output_dirs.push_back(dir_path+ path_first_dir.substr(1));
-    }else {
-        LOG_LOW("demo.cpp:populate_dirs, First Dir not found");
-        // error, directory not found
-        return 1;
-    }
-    std::string path_dir_result = "./"+ dir_prefix + "result";
-    // for other directories, copy samples to dest dir
-    for (auto const& dir_entry : std::filesystem::directory_iterator{path_root})
-    {
-        if (dir_entry.path().u8string().rfind("./"+ dir_prefix) == 0
-        && dir_entry.path().u8string() != path_first_dir
-        && dir_entry.path().u8string() != path_dir_result) {
-            //std::cout << "dir_entry.path(): " <<  dir_entry.path() <<"\n";
-            LOG_LOW("demo.cpp:populate_dirs, Directory found " << dir_entry.path());
-            // output_dirs.push_back("/u/home/mishrad/mitos-master/inst-dir/bin" + std::string(dir_entry.path()).substr(1));
-            output_dirs.push_back( dir_path + std::string(dir_entry.path()).substr(1));
-        }
-    } // END LOOP
-
-    return 0;
-}
 int process_mout(mitos_output *mout, const char *prefix_name)
 {
     memset(mout,0,sizeof(struct mitos_output));
@@ -232,7 +174,7 @@ int process_mout(mitos_output *mout, const char *prefix_name)
 
 void demo_write_samples_header(std::ofstream& fproc) {
     // Write header for processed samples
-    fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
+    fproc << "source,line,instruction,bytes,offset,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
 #if !defined(USE_IBS_FETCH) && !defined(USE_IBS_OP)
     fproc << "level,hit_type,op_type,snoop_mode,tlb_access,";
 #endif
@@ -319,21 +261,10 @@ int demo_post_process(const char *bin_name, mitos_output *mout, std::set<std::st
     demo_write_samples_header(fproc);
 
     //get base (.text) virtual address of the measured process
-    //std::ifstream foffset("/u/home/vanecek/sshfs/sv_mitos/build/test3.txt");
-    // TODO: Replace line
-    std::ifstream foffset("/tmp/virt_address.txt");
     long long offsetAddr = 0;
     std::string str_offset;
-    if(std::getline(foffset, str_offset).good())
-    {
-        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
-    }
-    foffset.close();
-    std::cout << "offset: " << offsetAddr << std::endl;
-
     // Read raw samples one by one and get attribute from ip
     Dyninst::Offset ip;
-    size_t ip_endpos;
     std::string line, ip_str;
     int tmp_line = 0;
     LOG_MEDIUM("demo.cpp:demo_post_process(), reading raw samples...");
@@ -346,9 +277,13 @@ int demo_post_process(const char *bin_name, mitos_output *mout, std::set<std::st
         std::stringstream instruction;
         std::stringstream bytes;
 
+        // Extract offset     
+        size_t offset_endpos = line.find(',');
+        str_offset = line.substr(0,offset_endpos);
+        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
         // Extract ip
-        size_t ip_endpos = line.find(',');
-        std::string ip_str = line.substr(0,ip_endpos);
+        size_t ip_endpos = (line.substr(offset_endpos+1)).find(',');
+        std::string ip_str = line.substr(offset_endpos+1,ip_endpos);
         ip = (Dyninst::Offset)(strtoull(ip_str.c_str(),NULL,0) - offsetAddr);
         if(tmp_line%4000==0)
             std::cout << "ip: " << ip <<"\n";
@@ -421,70 +356,9 @@ int demo_post_process(const char *bin_name, mitos_output *mout, std::set<std::st
 }
 
 
-int demo_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix, const std::set<std::string>& src_files) {
-    // find exact directory name for mpi_rank 0
-    fs::path path_root{"."};
-    bool first_dir_found = false;
-    std::string path_first_dir{""};
-    for (auto const& dir_entry : std::filesystem::directory_iterator{path_root}) {
-        if (dir_entry.path().u8string().rfind("./" + dir_first_dir_prefix) == 0) {
-            path_first_dir = dir_entry.path().u8string();
-            first_dir_found = true;
-        }
-    }
-    if(first_dir_found) {
-        LOG_LOW("demo.cpp:demo_merge_files(), First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result");
-    }else {
-        LOG_LOW("demo.cpp:demo_merge_files(), First Dir not found");
-        // error, directory not found
-        return 1;
-    }
-    std::string path_dir_result = "./"+ dir_prefix + "result";
-    // create directories
-    fs::create_directory(path_dir_result);
-    fs::create_directory(path_dir_result + "/data");
-    fs::create_directory(path_dir_result + "/hwdata");
-    fs::create_directory(path_dir_result + "/src");
-    // copy first directory
-    fs::copy(path_first_dir, path_dir_result, fs::copy_options::overwrite_existing | fs::copy_options::recursive);
-    // delete first folder
-    //fs::remove_all(path_first_dir);
-
-    std::string path_samples_dest = path_dir_result + "/data/samples.csv";
-    // check if file exist
-    if (fs::exists(path_samples_dest)) {
-        std::ofstream file_samples_out;
-        file_samples_out.open(path_samples_dest, std::ios_base::app);
-        // for other directories, copy samples to dest dir
-        for (auto const& dir_entry : std::filesystem::directory_iterator{path_root})
-        {
-            if (dir_entry.path().u8string().rfind("./"+ dir_prefix) == 0
-            && dir_entry.path().u8string() != path_first_dir
-            && dir_entry.path().u8string() != path_dir_result) {
-                LOG_LOW("demo.cpp:demo_merge_files(), Move Data " << dir_entry.path() << " to Result Folder...");
-                // src file
-                std::string path_samples_src = dir_entry.path().u8string() + "/data/samples.csv";
-                if (fs::exists(path_samples_src)) {
-                    // copy data
-                    std::ifstream file_samples_in(path_samples_src);
-                    std::string line;
-                    bool is_first_line = true;
-                    while (std::getline(file_samples_in, line))
-                    {
-                        if (is_first_line){
-                            is_first_line = false;
-                        }else{
-                            file_samples_out << line << "\n";
-                        }
-                    }
-                    file_samples_in.close();
-                    // delete old folder
-                    //fs::remove_all(dir_entry.path().u8string());
-                }
-            }
-        } // END LOOP
-        file_samples_out.close();
-    }
+int copy_source_files(const std::string& dir_prefix, const std::set<std::string>& src_files) {
+    
+    std::string path_dir_result = "./"+ dir_prefix;
     // copy source files
 
     std::cout << "Copying source files to result folder...\n";
