@@ -503,7 +503,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     // delete first folder
     //fs::remove_all(path_first_dir);
 
-    std::string path_samples_dest = path_dir_result + "/data/samples.csv";
+    std::string path_samples_dest = path_dir_result + "/data/raw_samples.csv";
     // check if file exist
     if (fs::exists(path_samples_dest)) {
         std::ofstream file_samples_out;
@@ -516,7 +516,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
             && dir_entry.path().u8string() != path_dir_result) {
                 LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), Move Data " << dir_entry.path() << " to Result Folder...");
                 // src file
-                std::string path_samples_src = dir_entry.path().u8string() + "/data/samples.csv";
+                std::string path_samples_src = dir_entry.path().u8string() + "/data/raw_samples.csv";
                 if (fs::exists(path_samples_src)) {
                     // copy data
                     std::ifstream file_samples_in(path_samples_src);

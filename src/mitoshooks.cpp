@@ -10,7 +10,9 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <sys/syscall.h>
-
+#include <vector>
+#include <fstream>
+#include <sstream>
 // #define _GNU_SOURCE // sched_getcpu(3) is glibc-specific (see the man page)
 #include <sched.h>
 #include <cassert>
@@ -28,6 +30,7 @@ struct func_args
 
 
 thread_local static mitos_output mout;
+thread_local static char* virt_address;
 long ts_output_prefix_omp;
 long tid_omp_first;
 
@@ -197,6 +200,9 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
    pid_t curpid = getpid();
    LOG_MEDIUM("mitoshooks.cpp:on_ompt_callback_thread_begin(), Curpid:= " << curpid);
 #endif
+    virt_address = new char[strlen(rank_prefix) + 1];
+    strcpy(virt_address, rank_prefix);
+    save_virtual_address_offset(std::string(rank_prefix) + std::string("_virt_address.txt"));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_THRESH;
@@ -232,6 +238,58 @@ static std::string getExecutableNameFromPID(pid_t pid) {
     }
 }
 
+static int add_offsets(){
+
+    // std::cout << "Saved virtual address: " << virt_address << "\n";
+    // Read the virtual address
+    std::string loc = std::string("/tmp/") + std::string(virt_address) + std::string("_virt_address.txt");
+    std::ifstream foffset(loc);
+    long long offsetAddr = 0;
+    std::string str_offset;
+    if(std::getline(foffset, str_offset).good())
+    {
+        str_offset += ",";
+        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
+    }
+    foffset.close();
+    std::cout << "Raw file: "<< mout.fname_raw << ", virt_address_file: "<< loc <<", offset: " << str_offset << std::endl;
+
+    // Open the raw_samples.csv
+    //std::ifstream fraw(mout->fname_raw);
+    std::fstream fraw(mout.fname_raw, std::ios::in | std::ios::out); // Open the file for reading and writing
+
+    if (!fraw.is_open()) {
+        std::cerr << "Error opening: " << loc << "\n";
+        return 1;
+    }
+
+    std::vector<std::string> lines; // Store lines in memory
+    std::string line;
+
+    // Read lines from the file into memory
+    while (std::getline(fraw, line)) {
+        if (!line.empty()) {
+            line.insert(0, str_offset); // Insert '0,' at the beginning of the line
+            lines.push_back(line);
+        }
+    }
+
+    fraw.close(); // Close the file
+
+    // Reopen the file in truncation mode
+    fraw.open(mout.fname_raw, std::ios::out | std::ios::trunc);
+
+    // Write modified lines back to the file
+    for (const auto& modified_line : lines) {
+        fraw << modified_line << std::endl;
+    }
+
+    fraw.close(); // Close the file
+    std::cout << "Successfully added virtual address at the start of each line." << "\n";
+
+    return 0;
+}
+
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     uint64_t tid_omp = thread_data->value;
 #ifdef SYS_gettid
@@ -244,6 +302,8 @@ static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     Mitos_end_sampler();
     fflush(mout.fout_raw); // flush raw samples stream before post processing starts
     std::cout << "Flushed raw samples, Thread No.: "<< omp_get_thread_num() << "\n";
+    //std::cout << "Saved virtual address: " << virt_address << "\n";
+    add_offsets();
     std::cout << "Thread End: "<< omp_get_thread_num() << "\n";
 }
 
@@ -258,7 +318,6 @@ int ompt_initialize(ompt_function_lookup_t lookup, int initial_device_num,
     register_callback(ompt_callback_thread_begin);
     register_callback(ompt_callback_thread_end);
 
-    save_virtual_address_offset("virt_address.txt");
     ts_output_prefix_omp = std::time(NULL);
 
     tid_omp_first = -1;
@@ -277,7 +336,9 @@ void ompt_finalize(ompt_data_t *tool_data) {
 //    while(existing_threads != completed_threads_omp) {
 //
 //    }
-    //Mitos_merge_files(std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
+    Mitos_merge_files(std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
+    delete[] virt_address;
+
 }
 
 // only used for debugging purposes
