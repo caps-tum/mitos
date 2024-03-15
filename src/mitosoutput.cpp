@@ -372,10 +372,9 @@ std::ofstream fproc(mout->fname_processed);
 
     return 0;
 #else // USE DYNINST
-
-    std::cout << "mitosoutput.cpp, Mitos_openFile(), bin_name: " << bin_name << "\n";
+    LOG_MEDIUM("mitosoutput.cpp, Mitos_openFile(), bin_name: " << bin_name);
     sym_success = SymtabAPI::Symtab::openFile(symtab_obj,bin_name);
-    std::cout << "mitosoutput.cpp, Mitos_openFile(), sym_success: " << sym_success <<"\n";
+    LOG_MEDIUM("mitosoutput.cpp, Mitos_openFile(), sym_success: " << sym_success);
     if(!sym_success)
     {
         std::cerr << "Mitos: Failed to open Symtab object for " << bin_name << std::endl;
@@ -398,7 +397,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
 {
     int err = 0;
     // Open input/output files
-    std::cout <<"mout->fname_raw: " <<mout->fname_raw << "\n";
+    LOG_MEDIUM("mitosoutput.cpp, Mitos_post_process(), mout->fname_raw: " <<mout->fname_raw);
     std::ifstream fraw(mout->fname_raw);
     std::ofstream fproc(mout->fname_processed);
     
@@ -417,7 +416,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
     Dyninst::Offset ip;
     std::string line, ip_str;
     int tmp_line = 0;
-    LOG_MEDIUM("mitosoutput.cpp:Mitos_post_process(), reading raw samples...");
+    LOG_MEDIUM("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
 
     while(std::getline(fraw, line).good())
     {
@@ -518,7 +517,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
         }
     }
     if(first_dir_found) {
-        LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result");
+        LOG_LOW("mitosoutput.cpp: Mitos_merge_files(), First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result");
     }else {
         // error, directory not found
         return 1;
@@ -545,7 +544,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
             if (dir_entry.path().u8string().rfind("./"+ dir_prefix) == 0
             && dir_entry.path().u8string() != path_first_dir
             && dir_entry.path().u8string() != path_dir_result) {
-                LOG_LOW("mitosoutput.cpp:Mitos_merge_files(), Move Data " << dir_entry.path() << " to Result Folder...");
+                LOG_LOW("mitosoutput.cpp: Mitos_merge_files(), Move Data " << dir_entry.path() << " to Result Folder...");
                 // src file
                 std::string path_samples_src = dir_entry.path().u8string() + "/data/raw_samples.csv";
                 if (fs::exists(path_samples_src)) {
@@ -570,7 +569,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
         file_samples_out.close();
     }
     // TODO Copy Raw samples
-    std::cout << "Merge successfully completed\n";
+    LOG_LOW("mitosoutput.cpp: Mitos_merge_files(), Merge successfully completed");
     return 0;
 }
 
@@ -579,9 +578,10 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
     std::string path_dir_result = "./"+ dir_prefix;
     // copy source files
 
-    std::cout << "Copying source files to result folder...\n";
+    LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copying source files to result folder");
     std::string path_src_dir = path_dir_result + "/src";
     for (auto& src_file : src_files) {
+        LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copying " << src_file);
         try {
             // Check if source file exists
             if (!fs::exists(src_file)) {
@@ -597,6 +597,6 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
         }   
     }
     
-    std::cout << "Merge successfully completed\n";
+    LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copied all the files.");
     return 0;
 }
