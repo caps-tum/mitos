@@ -81,6 +81,6 @@ int main(int argc, char **argv)
     Mitos_begin_sampler();
     matmul(N,a,b,c);
     Mitos_end_sampler();
-
-    Mitos_post_process(argv[0],&mout);
+    std::set<std::string> src_files;
+    Mitos_post_process(argv[0],&mout, src_files);
 }

@@ -197,7 +197,8 @@ int main(int argc, char **argv)
         dump_samples(); // anything left over
         std::cout << "Command completed! Processing samples..." <<  "\n";
         std::cout << "Bin Name" << argv[cmdarg] <<  "\n";
-        err = Mitos_post_process(argv[cmdarg],&mout);
+        std::set<std::string> src_files;
+        err = Mitos_post_process(argv[cmdarg],&mout, src_files);
         if(err)
             return 1;
         std::cout << "Done!\n";

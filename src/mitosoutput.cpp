@@ -39,6 +39,9 @@ using namespace ParseAPI;
 #include "x86_util.h" // getReadSize using instructionAPI
 
 #endif // USE_DYNINST
+SymtabAPI::Symtab *symtab_obj;
+SymtabCodeSource *symtab_code_src;
+int sym_success = 0;
 
 int Mitos_create_output(mitos_output *mout, const char *prefix_name)
 {
@@ -145,6 +148,37 @@ int Mitos_pre_process(mitos_output *mout)
         std::cerr << "Mitos: Failed to create hardware topology file!\n";
         return 1;
     }
+
+    return 0;
+}
+
+int Mitos_set_result_mout(mitos_output *mout, const char *prefix_name)
+{
+    memset(mout,0,sizeof(struct mitos_output));
+
+    // Set top directory name
+    std::stringstream ss_dname_topdir;
+    //ss_dname_topdir << prefix_name << "_" << std::time(NULL);
+    ss_dname_topdir << prefix_name;
+    mout->dname_topdir = strdup(ss_dname_topdir.str().c_str());
+
+    // Set data directory name
+    std::stringstream ss_dname_datadir;
+    ss_dname_datadir << ss_dname_topdir.str() << "/data";
+    mout->dname_datadir = strdup(ss_dname_datadir.str().c_str());
+
+    // Set src directory name
+    std::stringstream ss_dname_srcdir;
+    ss_dname_srcdir << ss_dname_topdir.str() << "/src";
+    mout->dname_srcdir = strdup(ss_dname_srcdir.str().c_str());
+
+    // Set hwdata directory name
+    std::stringstream ss_dname_hwdatadir;
+    ss_dname_hwdatadir << ss_dname_topdir.str() << "/hwdata";
+    mout->dname_hwdatadir = strdup(ss_dname_hwdatadir.str().c_str());
+
+    mout->fname_raw = strdup(std::string(std::string(mout->dname_datadir) + "/raw_samples.csv").c_str());
+    mout->fname_processed = strdup(std::string(std::string(mout->dname_datadir) + "/samples.csv").c_str());
 
     return 0;
 }
@@ -290,7 +324,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
 
 void Mitos_write_samples_header(std::ofstream& fproc) {
     // Write header for processed samples
-    fproc << "source,line,instruction,bytes,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
+    fproc << "source,line,instruction,bytes,offset,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
 #if !defined(USE_IBS_FETCH) && !defined(USE_IBS_OP)
     fproc << "level,hit_type,op_type,snoop_mode,tlb_access,";
 #endif
@@ -320,15 +354,11 @@ void Mitos_write_samples_header(std::ofstream& fproc) {
     fproc << "\n";
 }
 
-int Mitos_post_process(const char *bin_name, mitos_output *mout)
+int Mitos_openFile(const char *bin_name, mitos_output *mout)
 {
-    int err = 0;
-    fflush(mout->fout_raw); // flush raw samples stream before post processing starts
-
-    // Open input/output files
-    std::ifstream fraw(mout->fname_raw);
-    std::ofstream fproc(mout->fname_processed);
-    
+// Open input/output files
+std::ifstream fraw(mout->fname_raw);
+std::ofstream fproc(mout->fname_processed);
 #ifndef USE_DYNINST
     // No Dyninst, no post-processing
     err = rename(mout->fname_raw, mout->fname_processed);
@@ -341,12 +371,11 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     fraw.close();
 
     return 0;
-#else // USE_DYNINST
-    // Open Symtab object and code source object
-    SymtabAPI::Symtab *symtab_obj;
-    SymtabCodeSource *symtab_code_src;
-    
-    int sym_success = SymtabAPI::Symtab::openFile(symtab_obj,bin_name);
+#else // USE DYNINST
+
+    std::cout << "mitosoutput.cpp, Mitos_openFile(), bin_name: " << bin_name << "\n";
+    sym_success = SymtabAPI::Symtab::openFile(symtab_obj,bin_name);
+    std::cout << "mitosoutput.cpp, Mitos_openFile(), sym_success: " << sym_success <<"\n";
     if(!sym_success)
     {
         std::cerr << "Mitos: Failed to open Symtab object for " << bin_name << std::endl;
@@ -355,18 +384,24 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
         fraw.close();
         fproc.close();
 
-
-        err = rename(mout->fname_raw, mout->fname_processed);
+        int err = rename(mout->fname_raw, mout->fname_processed);
         if(err)
         {
             std::cerr << "Mitos: Failed to rename raw output to " << mout->fname_processed << std::endl;
         }
-
-
-
         return 1;
     }
+    return 0;
+}
 
+int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files)
+{
+    int err = 0;
+    // Open input/output files
+    std::cout <<"mout->fname_raw: " <<mout->fname_raw << "\n";
+    std::ifstream fraw(mout->fname_raw);
+    std::ofstream fproc(mout->fname_processed);
+    
     symtab_code_src = new SymtabCodeSource(strdup(bin_name));
 
     // Get machine information
@@ -376,21 +411,10 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
     Mitos_write_samples_header(fproc);
 
     //get base (.text) virtual address of the measured process
-    //std::ifstream foffset("/u/home/vanecek/sshfs/sv_mitos/build/test3.txt");
-    // TODO: Replace line
-    std::ifstream foffset("/tmp/virt_address.txt");
     long long offsetAddr = 0;
-    string str_offset;
-    if(std::getline(foffset, str_offset).good())
-    {
-        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
-    }
-    foffset.close();
-    cout << "offset: " << offsetAddr << endl;
-
+    std::string str_offset;
     // Read raw samples one by one and get attribute from ip
     Dyninst::Offset ip;
-    size_t ip_endpos;
     std::string line, ip_str;
     int tmp_line = 0;
     LOG_MEDIUM("mitosoutput.cpp:Mitos_post_process(), reading raw samples...");
@@ -403,12 +427,16 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
         std::stringstream instruction;
         std::stringstream bytes;
 
+        // Extract offset     
+        size_t offset_endpos = line.find(',');
+        str_offset = line.substr(0,offset_endpos);
+        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
         // Extract ip
-        size_t ip_endpos = line.find(',');
-        std::string ip_str = line.substr(0,ip_endpos);
+        size_t ip_endpos = (line.substr(offset_endpos+1)).find(',');
+        std::string ip_str = line.substr(offset_endpos+1,ip_endpos);
         ip = (Dyninst::Offset)(strtoull(ip_str.c_str(),NULL,0) - offsetAddr);
         if(tmp_line%4000==0)
-            cout << "ip: " << ip <<"\n";
+            std::cout << "ip: " << ip <<"\n";
         // Parse ip for source line info
         std::vector<SymtabAPI::Statement::Ptr> stats;
         sym_success = symtab_obj->getSourceLines(stats, ip);
@@ -425,6 +453,9 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout)
 
             }
             line_num << stats[0]->getLine();
+        }
+        if(!source.empty()){
+            src_files.insert(source);
         }
 
         // Parse ip for instruction info
@@ -539,6 +570,33 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
         file_samples_out.close();
     }
     // TODO Copy Raw samples
+    std::cout << "Merge successfully completed\n";
+    return 0;
+}
+
+int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string>& src_files) {
+    
+    std::string path_dir_result = "./"+ dir_prefix;
+    // copy source files
+
+    std::cout << "Copying source files to result folder...\n";
+    std::string path_src_dir = path_dir_result + "/src";
+    for (auto& src_file : src_files) {
+        try {
+            // Check if source file exists
+            if (!fs::exists(src_file)) {
+                std::cerr << "Source file not accessible: " << src_file << "\n";
+            }
+
+            // Copy the file
+            fs::copy(src_file, path_src_dir);
+
+            std::cout << "File copied successfully." << "\n";
+        } catch (const std::exception& ex) {
+            std::cerr << "Error: " << ex.what() << "\n";
+        }   
+    }
+    
     std::cout << "Merge successfully completed\n";
     return 0;
 }

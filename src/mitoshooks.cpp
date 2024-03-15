@@ -17,6 +17,7 @@
 #include <sched.h>
 #include <cassert>
 #include <ctime>
+#include <set>
 
 // 512 should be enough for xeon-phi
 #define MAX_THREADS 512
@@ -64,6 +65,57 @@ void sample_handler(perf_event_sample *sample, void *args)
     Mitos_write_sample(sample, &mout);
 }
 
+int add_offsets(){
+
+    // std::cout << "Saved virtual address: " << virt_address << "\n";
+    // Read the virtual address
+    std::string loc = std::string("/tmp/") + std::string(virt_address) + std::string("_virt_address.txt");
+    std::ifstream foffset(loc);
+    long long offsetAddr = 0;
+    std::string str_offset;
+    if(std::getline(foffset, str_offset).good())
+    {
+        str_offset += ",";
+        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
+    }
+    foffset.close();
+    std::cout << "Raw file: "<< mout.fname_raw << ", virt_address_file: "<< loc <<", offset: " << str_offset << std::endl;
+
+    // Open the raw_samples.csv
+    //std::ifstream fraw(mout->fname_raw);
+    std::fstream fraw(mout.fname_raw, std::ios::in | std::ios::out); // Open the file for reading and writing
+
+    if (!fraw.is_open()) {
+        std::cerr << "Error opening: " << loc << "\n";
+        return 1;
+    }
+
+    std::vector<std::string> lines; // Store lines in memory
+    std::string line;
+
+    // Read lines from the file into memory
+    while (std::getline(fraw, line)) {
+        if (!line.empty()) {
+            line.insert(0, str_offset); // Insert '0,' at the beginning of the line
+            lines.push_back(line);
+        }
+    }
+
+    fraw.close(); // Close the file
+
+    // Reopen the file in truncation mode
+    fraw.open(mout.fname_raw, std::ios::out | std::ios::trunc);
+
+    // Write modified lines back to the file
+    for (const auto& modified_line : lines) {
+        fraw << modified_line << std::endl;
+    }
+
+    fraw.close(); // Close the file
+    std::cout << "Successfully added virtual address at the start of each line." << "\n";
+
+    return 0;
+}
 int MPI_Init(int *argc, char ***argv)
 {
     fprintf(stderr, "MPI_Init hook\n");
@@ -78,9 +130,12 @@ int MPI_Init(int *argc, char ***argv)
     char rank_prefix[48];
     sprintf(rank_prefix, "%ld_rank_%d", ts_output, mpi_rank);
 
-    if (mpi_rank == 0) {
-        save_virtual_address_offset("virt_address.txt");
-    }
+    // if (mpi_rank == 0) {
+    //     save_virtual_address_offset("virt_address.txt");
+    // }
+    virt_address = new char[strlen(rank_prefix) + 1];
+    strcpy(virt_address, rank_prefix);
+    save_virtual_address_offset(std::string(rank_prefix) + std::string("_virt_address.txt"));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_THRESH;
@@ -135,13 +190,25 @@ int MPI_Finalize()
     int mpi_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     Mitos_end_sampler();
-    Mitos_post_process("/proc/self/exe", &mout);
+    fflush(mout.fout_raw); // flush raw samples stream before post processing starts
     MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "Flushed raw samples, Thread No.: \n";
+    //std::cout << "Saved virtual address: " << virt_address << "\n";
+    add_offsets();
     // merge files
     if (mpi_rank == 0) {
         int ret_val = Mitos_merge_files(std::to_string(ts_output) + "_rank_", std::to_string(ts_output) + "_rank_0");
+        //Mitos_post_process("/proc/self/exe", &mout);
+        Mitos_openFile("/proc/self/exe", &mout);
+        std::set<std::string> src_files;
+        mitos_output result_mout;
+        std::string result_dir = std::to_string(ts_output) + "_rank_result";
+        Mitos_set_result_mout(&result_mout, result_dir.c_str());    
+        Mitos_post_process("/proc/self/exe", &result_mout, src_files);
+        Mitos_copy_sources(result_dir, src_files);
     }
     MPI_Barrier(MPI_COMM_WORLD);
+    delete[] virt_address;
     return PMPI_Finalize();
 }
 #endif // USE_MPI
@@ -173,8 +240,6 @@ static uint64_t my_next_id() {
            "Maximum number of allowed threads is limited by MAX_THREADS");
     return ret;
 }
-
-
 
 static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
                                           ompt_data_t *thread_data) {
@@ -236,58 +301,6 @@ static std::string getExecutableNameFromPID(pid_t pid) {
         // Handle error (e.g., process not found, insufficient permissions)
         return "";
     }
-}
-
-static int add_offsets(){
-
-    // std::cout << "Saved virtual address: " << virt_address << "\n";
-    // Read the virtual address
-    std::string loc = std::string("/tmp/") + std::string(virt_address) + std::string("_virt_address.txt");
-    std::ifstream foffset(loc);
-    long long offsetAddr = 0;
-    std::string str_offset;
-    if(std::getline(foffset, str_offset).good())
-    {
-        str_offset += ",";
-        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
-    }
-    foffset.close();
-    std::cout << "Raw file: "<< mout.fname_raw << ", virt_address_file: "<< loc <<", offset: " << str_offset << std::endl;
-
-    // Open the raw_samples.csv
-    //std::ifstream fraw(mout->fname_raw);
-    std::fstream fraw(mout.fname_raw, std::ios::in | std::ios::out); // Open the file for reading and writing
-
-    if (!fraw.is_open()) {
-        std::cerr << "Error opening: " << loc << "\n";
-        return 1;
-    }
-
-    std::vector<std::string> lines; // Store lines in memory
-    std::string line;
-
-    // Read lines from the file into memory
-    while (std::getline(fraw, line)) {
-        if (!line.empty()) {
-            line.insert(0, str_offset); // Insert '0,' at the beginning of the line
-            lines.push_back(line);
-        }
-    }
-
-    fraw.close(); // Close the file
-
-    // Reopen the file in truncation mode
-    fraw.open(mout.fname_raw, std::ios::out | std::ios::trunc);
-
-    // Write modified lines back to the file
-    for (const auto& modified_line : lines) {
-        fraw << modified_line << std::endl;
-    }
-
-    fraw.close(); // Close the file
-    std::cout << "Successfully added virtual address at the start of each line." << "\n";
-
-    return 0;
 }
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
