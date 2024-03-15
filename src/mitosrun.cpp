@@ -199,12 +199,15 @@ int main(int argc, char **argv)
         std::cout << "Bin Name" << argv[cmdarg] <<  "\n";
         std::set<std::string> src_files;
         Mitos_add_offsets("", &mout);
-        err = Mitos_openFile(argv[cmdarg], &mout);
-        if(err)
+        if(Mitos_openFile(argv[cmdarg], &mout))
+        {
+            std::cerr << "Error opening binary file!" << std::endl;
             return 1;
-        err = Mitos_post_process(argv[cmdarg],&mout, src_files);
-        if(err)
+        }
+        if(Mitos_post_process(argv[cmdarg],&mout, src_files)){
+            std::cerr << "Error post processing!" << std::endl;
             return 1;
+        }
         std::cout << "Done!\n";
     }
 
