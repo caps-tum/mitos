@@ -66,54 +66,6 @@ void sample_handler(perf_event_sample *sample, void *args)
     Mitos_write_sample(sample, &mout);
 }
 
-int add_offsets(){
-
-    // Read the virtual address
-    std::string loc = std::string("/tmp/") + std::string(virt_address) + std::string("_virt_address.txt");
-    std::ifstream foffset(loc);
-    long long offsetAddr = 0;
-    std::string str_offset;
-    if(std::getline(foffset, str_offset).good())
-    {
-        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
-        str_offset += ",";
-    }
-    foffset.close();
-    LOG_LOW("mitoshooks.cpp: add_offsets(), Raw file: "<< mout.fname_raw << ", virt_address_file: "<< loc <<", offset: " << offsetAddr);
-
-    // Open the raw_samples.csv
-    std::fstream fraw(mout.fname_raw, std::ios::in | std::ios::out); // Open the file for reading and writing
-
-    if (!fraw.is_open()) {
-        std::cerr << "Error opening: " << loc << "\n";
-        return 1;
-    }
-
-    std::vector<std::string> lines; // Store lines in memory
-    std::string line;
-
-    // Read lines from the file into memory
-    while (std::getline(fraw, line)) {
-        if (!line.empty()) {
-            line.insert(0, str_offset); // Insert '0,' at the beginning of the line
-            lines.push_back(line);
-        }
-    }
-
-    fraw.close(); // Close the file
-
-    // Reopen the file in truncation mode
-    fraw.open(mout.fname_raw, std::ios::out | std::ios::trunc);
-
-    // Write modified lines back to the file
-    for (const auto& modified_line : lines) {
-        fraw << modified_line << std::endl;
-    }
-
-    fraw.close(); // Close the file
-    LOG_LOW("mitoshooks.cpp: add_offsets(), Successfully added virtual address at the start of each line.");
-    return 0;
-}
 int MPI_Init(int *argc, char ***argv)
 {
     fprintf(stderr, "MPI_Init hook\n");
@@ -126,11 +78,11 @@ int MPI_Init(int *argc, char ***argv)
     // send timestamp from rank 0 to all others to synchronize folder prefix
 
     char rank_prefix[48];
-    sprintf(rank_prefix, "%ld_rank_%d", ts_output, mpi_rank);
+    sprintf(rank_prefix, "%ld_rank_%d_", ts_output, mpi_rank);
 
     virt_address = new char[strlen(rank_prefix) + 1];
     strcpy(virt_address, rank_prefix);
-    save_virtual_address_offset(std::string(rank_prefix) + std::string("_virt_address.txt"));
+    save_virtual_address_offset(std::string(rank_prefix) + std::string("virt_address.txt"));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_THRESH;
@@ -188,7 +140,7 @@ int MPI_Finalize()
     fflush(mout.fout_raw); // flush raw samples stream before post processing starts
     MPI_Barrier(MPI_COMM_WORLD);
     LOG_LOW("mitoshooks.cpp: MPI_Finalize(), Flushed raw samples, rank no.: " << mpi_rank);
-    add_offsets();
+    Mitos_add_offsets(virt_address, &mout);
     // merge files
     if (mpi_rank == 0) {
         int ret_val = Mitos_merge_files(std::to_string(ts_output) + "_rank_", std::to_string(ts_output) + "_rank_0");
@@ -252,7 +204,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
          << " tid= "  << tid << " omp_tid= "  << tid_omp << " cpu_id= "  << cpu_num);
 #endif
     char rank_prefix[48];
-    sprintf(rank_prefix, "%ld_openmp_distr_mon_%d", ts_output_prefix_omp, tid);
+    sprintf(rank_prefix, "%ld_openmp_distr_mon_%d_", ts_output_prefix_omp, tid);
     Mitos_create_output(&mout, rank_prefix);
 #if CURRENT_VERBOSITY >= VERBOSE_MEDIUM
    pid_t curpid = getpid();
@@ -260,7 +212,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
 #endif
     virt_address = new char[strlen(rank_prefix) + 1];
     strcpy(virt_address, rank_prefix);
-    save_virtual_address_offset(std::string(rank_prefix) + std::string("_virt_address.txt"));
+    save_virtual_address_offset(std::string(rank_prefix) + std::string("virt_address.txt"));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_THRESH;
@@ -277,24 +229,6 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     LOG_LOW("mitoshooks.cpp: on_ompt_callback_thread_begin(), Begin sampling, thread id = " << omp_get_thread_num());
 }
 
-static std::string getExecutableNameFromPID(pid_t pid) {
-    char buffer[1024];
-    memset(buffer, 0, sizeof(buffer));
-
-    // Create the path to the symbolic link
-    snprintf(buffer, sizeof(buffer), "/proc/%d/exe", pid);
-
-    // Read the symbolic link
-    ssize_t len = readlink(buffer, buffer, sizeof(buffer) - 1);
-
-    if (len != -1) {
-        buffer[len] = '\0';
-        return std::string(buffer);
-    } else {
-        // Handle error (e.g., process not found, insufficient permissions)
-        return "";
-    }
-}
 
 static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     uint64_t tid_omp = thread_data->value;
@@ -308,7 +242,7 @@ static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     Mitos_end_sampler();
     fflush(mout.fout_raw); // flush raw samples stream before post processing starts
     LOG_LOW("mitoshooks.cpp: on_ompt_callback_thread_end(), Flushed raw samples, thread id = " << omp_get_thread_num());
-    add_offsets();
+    Mitos_add_offsets(virt_address, &mout);
     LOG_LOW("mitoshooks.cpp: on_ompt_callback_thread_end(), Thread End: " << omp_get_thread_num());
 }
 
@@ -337,11 +271,30 @@ void ompt_finalize(ompt_data_t *tool_data) {
     printf("End Sampler...\n");
     Mitos_merge_files(std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
     {
+        auto bin_name = [](pid_t pid) -> std::string {    
+            char buffer[1024];
+            memset(buffer, 0, sizeof(buffer));
+
+            // Create the path to the symbolic link
+            snprintf(buffer, sizeof(buffer), "/proc/%d/exe", pid);
+
+            // Read the symbolic link
+            ssize_t len = readlink(buffer, buffer, sizeof(buffer) - 1);
+
+            if (len != -1) {
+                buffer[len] = '\0';
+                return std::string(buffer);
+            } else {
+                // Handle error (e.g., process not found, insufficient permissions)
+                return "";
+            }
+        };   
         std::cout << "\n*******************************************************************\n\n";
         std::cout << "Samples collected and written as raw data. Run the following command for post-processing the samples: \n ";
-        std::cout << "./demo_post_process " <<getExecutableNameFromPID(getpid()) << " " + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult\n";                    
-        std::cout << "\n*******************************************************************\n\n";
+        std::cout << "./demo_post_process " <<bin_name(getpid()) << " " + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult\n";                    
+        std::cout << "\n*******************************************************************\n\n";    
     }
+        
     delete[] virt_address;
 
 }

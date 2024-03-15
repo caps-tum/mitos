@@ -322,6 +322,56 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
     return 0;
 }
 
+
+int Mitos_add_offsets(const char * virt_address, mitos_output *mout){
+
+    // Read the virtual address
+    std::string loc = std::string("/tmp/") + std::string(virt_address) + std::string("virt_address.txt");
+    std::ifstream foffset(loc);
+    long long offsetAddr = 0;
+    std::string str_offset;
+    if(std::getline(foffset, str_offset).good())
+    {
+        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
+        str_offset += ",";
+    }
+    foffset.close();
+    LOG_LOW("mitoshooks.cpp: add_offsets(), Raw file: "<< mout->fname_raw << ", virt_address_file: "<< loc <<", offset: " << offsetAddr);
+
+    // Open the raw_samples.csv
+    std::fstream fraw(mout->fname_raw, std::ios::in | std::ios::out); // Open the file for reading and writing
+
+    if (!fraw.is_open()) {
+        std::cerr << "Error opening: " << loc << "\n";
+        return 1;
+    }
+
+    std::vector<std::string> lines; // Store lines in memory
+    std::string line;
+
+    // Read lines from the file into memory
+    while (std::getline(fraw, line)) {
+        if (!line.empty()) {
+            line.insert(0, str_offset); // Insert '0,' at the beginning of the line
+            lines.push_back(line);
+        }
+    }
+
+    fraw.close(); // Close the file
+
+    // Reopen the file in truncation mode
+    fraw.open(mout->fname_raw, std::ios::out | std::ios::trunc);
+
+    // Write modified lines back to the file
+    for (const auto& modified_line : lines) {
+        fraw << modified_line << std::endl;
+    }
+
+    fraw.close(); // Close the file
+    LOG_LOW("mitoshooks.cpp: add_offsets(), Successfully added virtual address at the start of each line.");
+    return 0;
+}
+
 void Mitos_write_samples_header(std::ofstream& fproc) {
     // Write header for processed samples
     fproc << "source,line,instruction,bytes,offset,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";

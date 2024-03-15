@@ -65,6 +65,7 @@ int Mitos_create_output(struct mitos_output *mout, const char *prefix_name);
 int Mitos_pre_process(struct mitos_output *mout);
 int Mitos_set_result_mout(mitos_output *mout, const char *prefix_name);
 int Mitos_write_sample(struct perf_event_sample *s, struct mitos_output *mout);
+int Mitos_add_offsets(const char * virt_address, mitos_output *mout);
 int Mitos_openFile(const char *bin_name, mitos_output *mout);
 int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files);
 int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir);

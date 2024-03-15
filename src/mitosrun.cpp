@@ -198,6 +198,10 @@ int main(int argc, char **argv)
         std::cout << "Command completed! Processing samples..." <<  "\n";
         std::cout << "Bin Name" << argv[cmdarg] <<  "\n";
         std::set<std::string> src_files;
+        Mitos_add_offsets("", &mout);
+        err = Mitos_openFile(argv[cmdarg], &mout);
+        if(err)
+            return 1;
         err = Mitos_post_process(argv[cmdarg],&mout, src_files);
         if(err)
             return 1;

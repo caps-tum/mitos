@@ -46,9 +46,6 @@ SymtabAPI::Symtab *symtab_obj;
 SymtabCodeSource *symtab_code_src;
 int sym_success = 0;
 
-void openInputFile (std::ifstream &inputFile, std::string &bin_name, std::string &dir_path,
-            std::string &dir_prefix);
-
 int main(int argc, char* argv[])
 {
     // Check if input file is provided as command-line argument
@@ -66,9 +63,8 @@ int main(int argc, char* argv[])
     
     std::cout << "Executable Name: " << bin_name << '\n';
     std::cout << "Results directory: " << dir_prefix << '\n';
-    std::string output_dirs = dir_prefix;
     
-    Mitos_set_result_mout(&mouts, output_dirs.c_str());    
+    Mitos_set_result_mout(&mouts, dir_prefix.c_str());    
     Mitos_openFile(bin_name.c_str(), &mouts);
     
     std::set<std::string> src_files;
@@ -80,42 +76,5 @@ int main(int argc, char* argv[])
         std::cout << str << "\n";
     }
 
-    /* Examples:
-    dir:prefix: 1708705259_openmp_distr_monresult
-    */
-    //copy_source_files(dir_prefix, src_files);
     Mitos_copy_sources(dir_prefix, src_files);
-}
-
-void openInputFile (std::ifstream &inputFile, std::string &bin_name, std::string &dir_path,
-            std::string &dir_prefix){
-    std::string line;
-    while (std::getline(inputFile, line)) {
-        // Find the position of '=' character
-        size_t pos = line.find('=');
-        if (pos != std::string::npos) {
-            // Extract variable name and value
-            std::string variableName = line.substr(0, pos);
-            std::string value = line.substr(pos + 1);
-
-            // Remove leading/trailing spaces from variable name and value
-            size_t start = variableName.find_first_not_of(" \t");
-            size_t end = variableName.find_last_not_of(" \t");
-            if (start != std::string::npos && end != std::string::npos)
-                variableName = variableName.substr(start, end - start + 1);
-
-            start = value.find_first_not_of(" \t");
-            end = value.find_last_not_of(" \t");
-            if (start != std::string::npos && end != std::string::npos)
-                value = value.substr(start, end - start + 1);
-
-            // Store values in respective variables
-            if (variableName == "bin_name")
-                bin_name = value;
-            else if (variableName == "dir_path")
-                dir_path = value;
-            else if (variableName == "dir_prefix")
-                dir_prefix = value;
-        }
-    }
 }
