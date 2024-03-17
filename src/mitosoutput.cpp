@@ -680,22 +680,35 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
     
 
     for (auto& src_file : src_files) {
-        LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copying " << src_file);
+        if(src_file.substr(0,4) == "/usr") continue;
         try {
             // Check if source file exists
             if (!fs::exists(src_file)) {
                 std::cerr << "Source file not accessible: " << src_file << "\n";
             }
 
+            auto temp = path_src_dir;
+            size_t lastSlashPos = path_replacements[src_file].find_last_of('/');
+
+            if (lastSlashPos != std::string::npos) {
+                // Extract the substring up to the last occurrence of '/'
+                temp += path_replacements[src_file].substr(0, lastSlashPos + 1); // Include the '/' in the result
+                std::cout << "\nTemp Path: " << temp << std::endl;
+            }
+
+            if (!fs::exists(temp)) {
+                fs::create_directories(temp);
+            }
+            
+            
             // Copy the file
-            fs::copy(src_file, path_src_dir);
+            fs::copy(src_file, temp);
 
             std::cout << "File copied successfully." << "\n";
         } catch (const std::exception& ex) {
             std::cerr << "Error: " << ex.what() << "\n";
         }   
     }
-    
     LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copied all the files.");
     return 0;
 }
