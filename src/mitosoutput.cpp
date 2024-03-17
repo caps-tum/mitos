@@ -623,6 +623,51 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     return 0;
 }
 
+int Mitos_modify_samples(const std::string& dir_prefix, const std::map<std::string, std::string>& path_replacements){
+
+    std::string samples_loc = "./"+ dir_prefix + "/data/samples.csv";
+
+    // Open the raw_samples.csv
+    std::fstream sample_file(samples_loc, std::ios::in | std::ios::out); // Open the file for reading and writing
+
+    if (!sample_file.is_open()) {
+        std::cerr << "Error opening: " << samples_loc << "\n";
+        return 1;
+    }
+
+    std::vector<std::string> lines; // Store lines in memory
+    std::string line;
+
+    // Read lines from the file into memory
+    while (std::getline(sample_file, line)) {
+        if (!line.empty()) {
+            size_t source_info = line.find(',');
+            auto src = line.substr(0,source_info);
+            auto it = path_replacements.find(src);
+            if (it != path_replacements.end()) {
+                src = path_replacements.at(src);
+                src += ',';
+                line = src + line.substr(source_info+1);
+            }
+            lines.push_back(line);
+        }
+    }
+
+    sample_file.close(); // Close the file
+
+    // Reopen the file in truncation mode
+    sample_file.open(samples_loc, std::ios::out | std::ios::trunc);
+
+    // Write modified lines back to the file
+    for (const auto& modified_line : lines) {
+        sample_file << modified_line << std::endl;
+    }
+
+    sample_file.close(); // Close the file
+    LOG_LOW("mitoshooks.cpp: Mitos_modify_samples(), Successfully modified the locations of the samples.");
+    return 0;
+}
+
 int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string>& src_files) {
     
     std::string path_dir_result = "./"+ dir_prefix;
@@ -666,8 +711,9 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
         return commonPath;
 
     };
+
     auto common_path = common_prefix();
-    std::map <std::string, std::string> path_replacements;
+    std::map<std::string, std::string> path_replacements;
     for (auto& src_file : src_files) {
         if(src_file.substr(0,4) == "/usr") continue;
         path_replacements[src_file] = src_file.substr(common_path.second);
@@ -699,8 +745,7 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
             if (!fs::exists(temp)) {
                 fs::create_directories(temp);
             }
-            
-            
+              
             // Copy the file
             fs::copy(src_file, temp);
 
@@ -709,6 +754,8 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
             std::cerr << "Error: " << ex.what() << "\n";
         }   
     }
+
     LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copied all the files.");
+    Mitos_modify_samples(dir_prefix, path_replacements);
     return 0;
 }

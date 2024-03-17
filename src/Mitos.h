@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <set>
+#include <map>
 #include "ibs_types.h"
 
 // Define verbosity levels
@@ -69,6 +70,7 @@ int Mitos_add_offsets(const char * virt_address, mitos_output *mout);
 int Mitos_openFile(const char *bin_name, mitos_output *mout);
 int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files);
 int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir);
+int Mitos_modify_samples(const std::string& dir_prefix, const std::map<std::string, std::string>& path_replacements);
 int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string>& src_files);
 #ifdef __cplusplus
 } // extern "C"

@@ -82,5 +82,14 @@ int main(int argc, char **argv)
     matmul(N,a,b,c);
     Mitos_end_sampler();
     std::set<std::string> src_files;
-    Mitos_post_process(argv[0],&mout, src_files);
+    Mitos_add_offsets("", &mout);
+    if(Mitos_openFile(argv[0], &mout))
+    {
+        std::cerr << "Error opening binary file!" << std::endl;
+        return 1;
+    }
+    if(Mitos_post_process(argv[0],&mout, src_files)){
+        std::cerr << "Error post processing!" << std::endl;
+        return 1;
+    }
 }
