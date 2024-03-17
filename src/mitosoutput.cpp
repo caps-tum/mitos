@@ -630,6 +630,55 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
 
     LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copying source files to result folder");
     std::string path_src_dir = path_dir_result + "/src";
+
+    auto common_prefix = [&]() -> std::pair<std::string, int> {    
+        auto iter = src_files.begin();
+        std::string prefix = ((*iter).substr(0,4) == "/usr" ) ? "" : (*iter);
+        int ans = prefix.length(), n = src_files.size();
+
+        for(auto it = ++iter; it != src_files.end(); ++it){
+            int j = 0;
+            auto temp = *it;
+            if(temp.substr(0,4) == "/usr") continue;
+
+            while(j<temp.length() && temp[j] == prefix[j]) j++;
+            ans = std::min(ans, j);
+        }
+        prefix = prefix.substr(0, ans);
+        std::pair<std::string, int> commonPath;
+        commonPath.first = "";
+        commonPath.second = 0;
+        if(prefix.length() > 1)
+        {
+            size_t lastSlashPos = prefix.find_last_of('/');
+
+            if (lastSlashPos != std::string::npos) {
+                // Extract the substring up to the last occurrence of '/'
+                commonPath.first = prefix.substr(0, lastSlashPos + 1); // Include the '/' in the result
+                commonPath.second = lastSlashPos + 1;
+                std::cout << "\nChopped Path: " << commonPath.first << std::endl;
+                return commonPath;
+            } else {
+                std::cout << "No '/' found in the path." << std::endl;
+                return commonPath;
+            }
+        }
+        return commonPath;
+
+    };
+    auto common_path = common_prefix();
+    std::map <std::string, std::string> path_replacements;
+    for (auto& src_file : src_files) {
+        if(src_file.substr(0,4) == "/usr") continue;
+        path_replacements[src_file] = src_file.substr(common_path.second);
+    }
+
+    for (auto &pair:path_replacements)
+    {
+        std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
+    }
+    
+
     for (auto& src_file : src_files) {
         LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copying " << src_file);
         try {
