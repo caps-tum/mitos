@@ -701,10 +701,10 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
                 // Extract the substring up to the last occurrence of '/'
                 commonPath.first = prefix.substr(0, lastSlashPos + 1); // Include the '/' in the result
                 commonPath.second = lastSlashPos + 1;
-                std::cout << "\nChopped Path: " << commonPath.first << std::endl;
+                std::cout << "\nCommon Path: " << commonPath.first << "\n";
                 return commonPath;
             } else {
-                std::cout << "No '/' found in the path." << std::endl;
+                std::cout << "No '/' found in the path." << "\n";
                 return commonPath;
             }
         }
@@ -719,9 +719,9 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
         path_replacements[src_file] = src_file.substr(common_path.second);
     }
 
-    for (auto &pair:path_replacements)
+    for (auto &path:path_replacements)
     {
-        std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
+        std::cout << "Original path: " << path.first << ", Modfied path: " << path.second << "\n";
     }
     
 
