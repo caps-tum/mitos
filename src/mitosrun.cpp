@@ -197,9 +197,17 @@ int main(int argc, char **argv)
         dump_samples(); // anything left over
         std::cout << "Command completed! Processing samples..." <<  "\n";
         std::cout << "Bin Name" << argv[cmdarg] <<  "\n";
-        err = Mitos_post_process(argv[cmdarg],&mout);
-        if(err)
+        std::set<std::string> src_files;
+        Mitos_add_offsets("", &mout);
+        if(Mitos_openFile(argv[cmdarg], &mout))
+        {
+            std::cerr << "Error opening binary file!" << std::endl;
             return 1;
+        }
+        if(Mitos_post_process(argv[cmdarg],&mout, src_files)){
+            std::cerr << "Error post processing!" << std::endl;
+            return 1;
+        }
         std::cout << "Done!\n";
     }
 

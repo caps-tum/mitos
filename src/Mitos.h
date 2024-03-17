@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <inttypes.h>
+#include <set>
+#include <map>
 #include "ibs_types.h"
 
 // Define verbosity levels
@@ -62,9 +64,14 @@ long Mitos_z_index(struct perf_event_sample *s);
 // Output
 int Mitos_create_output(struct mitos_output *mout, const char *prefix_name);
 int Mitos_pre_process(struct mitos_output *mout);
+int Mitos_set_result_mout(mitos_output *mout, const char *prefix_name);
 int Mitos_write_sample(struct perf_event_sample *s, struct mitos_output *mout);
-int Mitos_post_process(const char *bin_name, struct mitos_output *mout);
+int Mitos_add_offsets(const char * virt_address, mitos_output *mout);
+int Mitos_openFile(const char *bin_name, mitos_output *mout);
+int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files);
 int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir);
+int Mitos_modify_samples(const std::string& dir_prefix, const std::map<std::string, std::string>& path_replacements);
+int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string>& src_files);
 #ifdef __cplusplus
 } // extern "C"
 #endif
