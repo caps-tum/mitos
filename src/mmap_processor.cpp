@@ -7,6 +7,8 @@
 #include "Mitos.h"
 #include "mmap_processor.h"
 
+/*if the sample type is not recognized, the skip_mmap_buffer function is called 
+to skip a certain amount of data in the memory-mapped buffer (in this case, the size of ehdr).*/
 void skip_mmap_buffer(struct perf_event_mmap_page *mmap_buf, size_t sz)
 {
     if ((mmap_buf->data_tail + sz) > mmap_buf->data_head)
@@ -14,7 +16,7 @@ void skip_mmap_buffer(struct perf_event_mmap_page *mmap_buf, size_t sz)
 
     mmap_buf->data_tail += sz;
 }
-
+/*Reads the mmap buffer and writes the info to a char* */
 int read_mmap_buffer(struct perf_event_mmap_page *mmap_buf, size_t pgmsk, char *out, size_t sz)
 {
 	char *data;
@@ -60,6 +62,9 @@ void process_freq_sample(struct perf_event_mmap_page *mmap_buf, size_t pgmsk)
 	ret = read_mmap_buffer(mmap_buf, pgmsk, (char*)&thr, sizeof(thr));
 }
 
+/*This function processes a single sample event. It reads the mmap buffer and stores the 
+    information in the pes structure. The user supplied handler_fn is called to write the 
+    data in `pes` to output text files. */
 int process_single_sample(struct perf_event_sample *pes, 
                           uint32_t event_type, 
                           sample_handler_fn_t handler_fn,
@@ -106,13 +111,9 @@ int process_single_sample(struct perf_event_sample *pes,
     if (event_type & (PERF_SAMPLE_RAW)) {
         ret = read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->raw_size, sizeof(uint32_t));
         if (ret != 0) {
-            //std::cout << "Error Raw Data\n";
+            LOG_LOW("mmap_processor.cpp:process_single_sample(), Error Raw Data");
             return ret;
         }
-//        else if( pes.raw_size > size_hdr) {
-//            std::cout << "Error Size: " << pes.raw_size << " > " << size_hdr << "\n";
-//        }
-        //bytes_read += 4 + pes.raw_size;
         uint32_t remaining_data = pes->raw_size;
 
         // skip 4B padding
@@ -120,7 +121,7 @@ int process_single_sample(struct perf_event_sample *pes,
         ret = read_mmap_buffer(mmap_buf, pgmsk, (char *) &temp_data, sizeof(uint32_t)); // skip first 4 bytes
 
         if (ret != 0) {
-            std::cout << "Error TempData\n";
+            LOG_LOW("mmap_processor.cpp:process_single_sample(), Error TempData");
             return ret;
         }
 
@@ -150,41 +151,11 @@ int process_single_sample(struct perf_event_sample *pes,
                 ret_val |= read_mmap_buffer(mmap_buf, pgmsk, (char *) &pes->ibs_fetch_ext, sizeof(uint64_t));
             }
             if (ret != 0) {
-                std::cout << "Error TempDataFetch\n";
+                LOG_LOW("mmap_processor.cpp:process_single_sample(), Error TempDataFetch");
                 return ret;
             }
-#endif
-//                ibs_fetch_ctl_t ibs_fetch_str = pes.ibs_fetch_ctl;
-//                //result << "IbsFetchMaxCnt: " << ibs_fetch_str.reg.ibs_fetch_max_cnt << ", ";
-//                //result << "IbsFetchCnt: " << ibs_fetch_str.reg.ibs_fetch_cnt << ", ";
-//                result << "IbsFetchLat: " << ibs_fetch_str.reg.ibs_fetch_lat << ", ";
-//                // result << "IbsFetchEn: " << (ibs_fetch_str.reg.ibs_fetch_en?"1":"0") << ", ";
-//                result << "Instruction Fetch Valid: " << (ibs_fetch_str.reg.ibs_fetch_val ? "1" : "0") << ", ";
-//                result << "Instruction Fetch Complete: " << (ibs_fetch_str.reg.ibs_fetch_comp ? "1" : "0") << ", ";
-//                result << "Instr. Fetch miss: " << (ibs_fetch_str.reg.ibs_ic_miss ? "1" : "0") << ", ";
-//                result << "IbsPhyAddr Valid: " << (ibs_fetch_str.reg.ibs_phy_addr_valid ? "1" : "0") << ", ";
-//                std::string ibs_l1_tlb_pg_size = "error";
-//                switch (ibs_fetch_str.reg.ibs_l1_tlb_pg_sz) {
-//                    case 0:
-//                        ibs_l1_tlb_pg_size = "4KB";
-//                        break;
-//                    case 1:
-//                        ibs_l1_tlb_pg_size = "2MB";
-//                        break;
-//                    case 2:
-//                        ibs_l1_tlb_pg_size = "1GB";
-//                        break;
-//                    default:
-//                        break;
-//                }
-//                result << "IbsL1TlbPgSz: " << ibs_l1_tlb_pg_size << ", ";
-//                result << "IbsTlbMiss Instr. Cache L1: " << (ibs_fetch_str.reg.ibs_l1_tlb_miss ? "1" : "0") << ", ";
-//                result << "IbsL2TlbMiss Instr. Cache L2: " << (ibs_fetch_str.reg.ibs_l2_tlb_miss ? "1" : "0") << ", ";
-//                result << "IbsRandEn (Random tagging): " << (ibs_fetch_str.reg.ibs_rand_en ? "1" : "0") << ", ";
-//                result << "IbsFetchL2 Miss: " << (ibs_fetch_str.reg.ibs_fetch_l2_miss ? "1" : "0") << ", ";
-//                result << std::hex << pes.ibs_fetch_ctl.val << "\t" << pes.ibs_fetch_lin << "\t" << pes.ibs_fetch_phy.reg.ibs_fetch_phy_addr
-//                       << "\t" << ((extended_exists) ? (pes.ibs_fetch_ext) : 0) << std::endl;
-            // std::cout << result.str();
+#endif // USE_IBS_FETCH
+
 #ifdef USE_IBS_OP
             // read standard register content
             int ret_val = read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_ctl, sizeof(uint64_t));
@@ -194,47 +165,19 @@ int process_single_sample(struct perf_event_sample *pes,
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_data_3, sizeof(uint64_t));
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_lin, sizeof(uint64_t));
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_phy, sizeof(uint64_t));
-            //remaining_data = remaining_data -  4 - 56; // padding + 7 registers
 
-            //if (remaining_data >= 8) {
-            // read brs register
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_brs_target, sizeof(uint64_t));
-            //remaining_data -= 8;
-            //}
-            //if(remaining_data >= 8) {
-            // op_data_4 register found
             ret_val |= read_mmap_buffer(mmap_buf, pgmsk,(char *) &pes->ibs_op_brs_target, sizeof(uint64_t));
-            //remaining_data -= 8;
-            //}
-//                if (remaining_data != 0) {
-//                    std::cout << remaining_data << ", " << pes.raw_size << ", Hdr Size: " << size_hdr << std::endl;
-//                }
+
+
             if (ret != 0) {
-                std::cout << "Error ibs_op\n";
+                LOG_LOW("mmap_processor.cpp:process_single_sample(), Error ibs_op");
                 return ret;
             }
 
-//        }else {
-//            std::cout << "Error Size Output: " << pes->raw_size << std::endl;
-//        }
-        //int firstVal = (int) (unsigned char) pes.raw_data[0];
-        //std::cout << "Raw Data: " << pes.raw_size << ", " << firstVal << std::endl;
-//    }else {
-//        //std::cout << "Error Size is Zero: " << pes.raw_size << std::endl;
-//    }
-
-#endif
+#endif // USE_IBS_OP
         }
     }
-
-    /*
-    if(event_type &(PERF_SAMPLE_CALLCHAIN))
-    {
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)&pes->nr, sizeof(uint64_t));
-        pes->ips = (uint64_t*)malloc(pes->nr*sizeof(uint64_t));
-        ret |= read_mmap_buffer(mmap_buf, pgmsk, (char*)pes->ips,pes->nr*sizeof(uint64_t));
-    }
-    */
 
     if(event_type &(PERF_SAMPLE_WEIGHT))
     {
@@ -252,6 +195,7 @@ int process_single_sample(struct perf_event_sample *pes,
         pes->mem_tlb = datasource_mem_tlb(pes->data_src);
     }
 
+    // If the handler_fn has been set, write the samples to the output files
     if(handler_fn)
     {
         handler_fn(pes, handler_fn_args);
@@ -260,6 +204,9 @@ int process_single_sample(struct perf_event_sample *pes,
     return ret;
 }
 
+/* This function reads and processes the memory-mapped buffer (which stores all the 
+information associated with the samples). Depending on the sample type, it either 
+writes them, skips them, etc.*/
 int process_sample_buffer(struct perf_event_sample *pes,
                           uint32_t event_type, 
                           sample_handler_fn_t handler_fn,
@@ -272,10 +219,14 @@ int process_sample_buffer(struct perf_event_sample *pes,
 
     for(;;) 
     {
+        // Reads the mmap buffer and stores the info in ehdr 
         ret = read_mmap_buffer(mmap_buf, pgmsk, (char*)&ehdr, sizeof(ehdr));
         if(ret)
             return 0; // no more samples
-
+        /*Depending on the type of sample, different processing functions are called. These 
+        functions may handle different aspects of the performance data, such as processing a single sample, 
+        handling exit events, handling lost samples, and handling frequency-related events.
+        */
         switch(ehdr.type) 
         {
             case PERF_RECORD_SAMPLE:
@@ -295,6 +246,8 @@ int process_sample_buffer(struct perf_event_sample *pes,
                 process_freq_sample(mmap_buf, pgmsk);
                 break;
             default:
+                /*if the sample type is not recognized, the skip_mmap_buffer function is called 
+                to skip a certain amount of data in the memory-mapped buffer (in this case, the size of ehdr).*/
                 skip_mmap_buffer(mmap_buf, sizeof(ehdr));
         }
     }

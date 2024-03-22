@@ -9,8 +9,10 @@ set(MITOS_MAJOR_VERSION 0)
 set(MITOS_MINOR_VERSION 8)
 set(MITOS_PATCH_VERSION 1)
 set(MITOS_VERSION ${MITOS_MAJOR_VERSION}.${MITOS_MINOR_VERSION}.${MITOS_PATCH_VERSION})
-set(IBS_TYPE "OFF" "IBS_FETCH" "IBS_OP" CACHE STRING "Enabling Instruction-Based Sampling")
 option(MITOSHOOKS_OPEN_MP "Enable Mitoshooks OpenMP-Routing" OFF)
+
+# IBS (AMD) and PEBS (Intel) related options
+set(IBS_TYPE "OFF" "IBS_FETCH" "IBS_OP" CACHE STRING "Enabling Instruction-Based Sampling")
 set_property(CACHE IBS_TYPE PROPERTY STRINGS
         "OFF" "IBS_FETCH" "IBS_OP")
 
@@ -21,13 +23,14 @@ set_property(CACHE IBS_SAMPLING_MODE PROPERTY STRINGS
 if ((IBS_TYPE STREQUAL "IBS_FETCH") OR (IBS_TYPE STREQUAL "IBS_OP"))
     # define sampling mode for IBS
     if (IBS_SAMPLING_MODE STREQUAL "ALL_ON")
-        message(STATUS "IBS Sampling Mode ALL_ON Selected: Monitor all cores")
+	    message(STATUS "IBS (AMD) Sampling Mode ALL_ON Selected: Monitor all cores")
         add_definitions(-DUSE_IBS_ALL_ON)
     elseif (IBS_SAMPLING_MODE STREQUAL "THREAD_MIGRATION")
-        message(STATUS "IBS Sampling Mode THREAD_MIGRATION Selected: Monitor one thread; Migrate sampler at runtime from one core to another")
+	    message(STATUS "IBS (AMD) Sampling Mode THREAD_MIGRATION Selected: Monitor one thread; Migrate sampler at runtime from one core to another")
         add_definitions(-DUSE_IBS_THREAD_MIGRATION)
-    else()
-        message(STATUS "IBS not set")
+    # if no IBS options are selected, use PEBS
+    else() 
+        message(STATUS "Using PEBS (Intel)")
     endif ()
 endif ()
 
@@ -37,8 +40,9 @@ if (IBS_TYPE STREQUAL "IBS_FETCH")
 elseif (IBS_TYPE STREQUAL "IBS_OP")
     message(STATUS "Switch IBS_OP On")
     add_definitions(-DUSE_IBS_OP)
-else()
-    message(STATUS "IBS not set")
+    # If no IBS sampling mode is set, use PEBS
+    else()
+    message(STATUS "Using PEBS (Intel)")
 endif ()
 
 
@@ -66,6 +70,7 @@ endif()
 # C-Defines for non-essential packages
 if(MPI_FOUND)
     add_definitions(-DUSE_MPI)
+    message(STATUS "Mitoshooks MPI Enabled")
 endif()
 
 

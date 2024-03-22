@@ -8,3 +8,5 @@ cscope.out
 build/
 cmake-build-debug/
 .idea/
+inst-dir/
+.vscode/

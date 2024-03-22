@@ -6,7 +6,6 @@
 using namespace std;
 
 #include <Instruction.h>
-//#include <Operation.h>
 #include <Expression.h>
 using namespace Dyninst;
 using namespace InstructionAPI;

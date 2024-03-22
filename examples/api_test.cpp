@@ -4,6 +4,7 @@
 #include <cstdlib>
 
 #include "../src/Mitos.h"
+#include "src/virtual_address_writer.h"
 
 mitos_output mout;
 
@@ -25,7 +26,9 @@ void init_matrices(int N, double **a, double **b, double **c)
     *b = new double[N*N];
     *c = new double[N*N];
 
-    size_t dims[2] = {N,N};
+    size_t dims[2];
+    dims[0] = N; //static_cast<size_t>(N);
+    dims[1] = N; //static_cast<size_t>(N);
     Mitos_add_symbol("a",*a,sizeof(double),dims,2);
     Mitos_add_symbol("b",*b,sizeof(double),dims,2);
     Mitos_add_symbol("c",*c,sizeof(double),dims,2);
@@ -62,6 +65,7 @@ void matmul(int N, double *a, double *b, double *c)
 
 int main(int argc, char **argv)
 {
+    save_virtual_address_offset("virt_address.txt");
     int N = (argc == 2) ? atoi(argv[1]) : 1024;
 
     double *a,*b,*c;
@@ -74,9 +78,18 @@ int main(int argc, char **argv)
     Mitos_set_sample_latency_threshold(3);
     Mitos_set_sample_time_frequency(4000);
 
-    //Mitos_begin_sampler();
+    Mitos_begin_sampler();
     matmul(N,a,b,c);
-    //Mitos_end_sampler();
-
-    Mitos_post_process(argv[0],&mout);
+    Mitos_end_sampler();
+    std::set<std::string> src_files;
+    Mitos_add_offsets("", &mout);
+    if(Mitos_openFile(argv[0], &mout))
+    {
+        std::cerr << "Error opening binary file!" << std::endl;
+        return 1;
+    }
+    if(Mitos_post_process(argv[0],&mout, src_files)){
+        std::cerr << "Error post processing!" << std::endl;
+        return 1;
+    }
 }
