@@ -219,7 +219,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     Mitos_get_environment_variables(sampling_period, latency_threshold);
 
     Mitos_pre_process(&mout);
-    Mitos_set_pid(getpid());
+    Mitos_set_pid(tid);
 
     Mitos_set_handler_fn(&sample_handler_omp,NULL);
     Mitos_set_sample_latency_threshold(latency_threshold);
