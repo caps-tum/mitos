@@ -54,7 +54,6 @@ void usage(char **argv)
     std::cerr << "        -b sample buffer size (default 4096)" << std::endl;
     std::cerr << "        -p sample period (default 4000)" << std::endl;
     std::cerr << "        -t sample latency threshold (default 10)" << std::endl;
-    std::cerr << "        -s top folder of source code to copy" << std::endl;
     std::cerr << "    <cmd>: command to sample on (required)" << std::endl;
     std::cerr << "    [args]: command arguments" << std::endl;
 }
@@ -86,9 +85,6 @@ int parse_args(int argc, char **argv)
                 break;
             case 't':
                 thresh = atoi(optarg);
-                break;
-            case 's':
-                mout.dname_srcdir_orig = optarg;
                 break;
             case '?':
                 usage(argv);
@@ -208,6 +204,7 @@ int main(int argc, char **argv)
             std::cerr << "Error post processing!" << std::endl;
             return 1;
         }
+        Mitos_copy_sources(mout.dname_topdir, src_files);   
         std::cout << "Done!\n";
     }
 
