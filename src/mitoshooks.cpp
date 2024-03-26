@@ -62,7 +62,7 @@ long ts_output = 0;
 
 void sample_handler(perf_event_sample *sample, void *args)
 {
-    LOG_MEDIUM("mitoshooks.cpp: sample_handler(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
+    LOG_HIGH("mitoshooks.cpp: sample_handler(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
     Mitos_write_sample(sample, &mout);
 }
 
@@ -164,7 +164,7 @@ int MPI_Finalize()
 
 void sample_handler_omp(perf_event_sample *sample, void *args)
 {
-    LOG_MEDIUM("mitoshooks.cpp: sample_handler_omp(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
+    LOG_HIGH("mitoshooks.cpp: sample_handler_omp(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
     Mitos_write_sample(sample, &mout);
 }
 

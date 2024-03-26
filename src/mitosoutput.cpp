@@ -140,14 +140,14 @@ int Mitos_pre_process(mitos_output *mout)
         return 1;
     }
 
-    std::string fname_lshw = std::string(mout->dname_hwdatadir) + "/lshw.xml";
-    std::string lshw_cmd = "lshw -c memory -xml > " + fname_lshw;
-    err = system(lshw_cmd.c_str());
-    if(err)
-    {
-        std::cerr << "Mitos: Failed to create hardware topology file!\n";
-        return 1;
-    }
+    // std::string fname_lshw = std::string(mout->dname_hwdatadir) + "/lshw.xml";
+    // std::string lshw_cmd = "lshw -c memory -xml > " + fname_lshw;
+    // err = system(lshw_cmd.c_str());
+    // if(err)
+    // {
+    //     std::cerr << "Mitos: Failed to create hardware topology file!\n";
+    //     return 1;
+    // }
 
     return 0;
 }
@@ -441,6 +441,7 @@ std::ofstream fproc(mout->fname_processed);
         return 1;
     }
     return 0;
+#endif // USE_DYNINST
 }
 
 int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files)
@@ -466,7 +467,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
     Dyninst::Offset ip;
     std::string line, ip_str;
     int tmp_line = 0;
-    LOG_MEDIUM("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
+    LOG_HIGH("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
 
     while(std::getline(fraw, line).good())
     {
@@ -548,8 +549,6 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         std::cerr << "Mitos: Failed to delete raw sample file!\n";
         return 1;
     }
-
-#endif // USE_DYNINST
 
     return 0;
 }
