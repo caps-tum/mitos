@@ -98,22 +98,6 @@ int Mitos_create_output(mitos_output *mout, const char *prefix_name)
         return 1;
     }
 
-    //copy over source code to mitos output folder
-    if (!mout->dname_srcdir_orig.empty())
-    {
-        if(!fs::exists(mout->dname_srcdir_orig))
-        {
-            std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "does not exist!\n";
-            return 1;
-        }
-        std::error_code ec;
-        fs::copy(mout->dname_srcdir_orig, mout->dname_srcdir, ec);
-        if(ec)
-        {
-            std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "was not copied. Error " << ec.value() << ".\n";
-            return 1;
-        }
-    }
 
     mout->ok = true;
 
@@ -494,14 +478,6 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         if(sym_success)
         {
             source = (string)stats[0]->getFile();
-            if (!mout->dname_srcdir_orig.empty())
-            {
-                std::size_t pos = source.find(mout->dname_srcdir_orig);
-                if(pos == 0){
-                    source = source.substr(mout->dname_srcdir_orig.length() + (mout->dname_srcdir_orig.back() == '/' ? 0 : 1)); //to remove slash if there is none in the string
-                }
-
-            }
             line_num << stats[0]->getLine();
         }
         if(!source.empty()){

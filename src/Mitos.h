@@ -138,8 +138,6 @@ struct mitos_output
     char *dname_srcdir;
     char *dname_hwdatadir;
 
-    std::string dname_srcdir_orig;
-
     char *fname_raw;
     char *fname_processed;
 

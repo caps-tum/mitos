@@ -65,7 +65,6 @@ void set_defaults()
     bufsz = DEFAULT_BUFSZ;
     period = DEFAULT_PERIOD;
     thresh = DEFAULT_THRESH;
-    mout.dname_srcdir_orig = "";
     address_file = "/tmp/mitos_virt_address.txt";
 }
 
