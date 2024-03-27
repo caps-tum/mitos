@@ -98,22 +98,6 @@ int Mitos_create_output(mitos_output *mout, const char *prefix_name)
         return 1;
     }
 
-    //copy over source code to mitos output folder
-    if (!mout->dname_srcdir_orig.empty())
-    {
-        if(!fs::exists(mout->dname_srcdir_orig))
-        {
-            std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "does not exist!\n";
-            return 1;
-        }
-        std::error_code ec;
-        fs::copy(mout->dname_srcdir_orig, mout->dname_srcdir, ec);
-        if(ec)
-        {
-            std::cerr << "Mitos: Source code path " << mout->dname_srcdir_orig << "was not copied. Error " << ec.value() << ".\n";
-            return 1;
-        }
-    }
 
     mout->ok = true;
 
@@ -140,14 +124,14 @@ int Mitos_pre_process(mitos_output *mout)
         return 1;
     }
 
-    std::string fname_lshw = std::string(mout->dname_hwdatadir) + "/lshw.xml";
-    std::string lshw_cmd = "lshw -c memory -xml > " + fname_lshw;
-    err = system(lshw_cmd.c_str());
-    if(err)
-    {
-        std::cerr << "Mitos: Failed to create hardware topology file!\n";
-        return 1;
-    }
+    // std::string fname_lshw = std::string(mout->dname_hwdatadir) + "/lshw.xml";
+    // std::string lshw_cmd = "lshw -c memory -xml > " + fname_lshw;
+    // err = system(lshw_cmd.c_str());
+    // if(err)
+    // {
+    //     std::cerr << "Mitos: Failed to create hardware topology file!\n";
+    //     return 1;
+    // }
 
     return 0;
 }
@@ -326,7 +310,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
 int Mitos_add_offsets(const char * virt_address, mitos_output *mout){
 
     // Read the virtual address
-    std::string loc = std::string("/tmp/") + std::string(virt_address) + std::string("virt_address.txt");
+    std::string loc = virt_address;
     std::ifstream foffset(loc);
     long long offsetAddr = 0;
     std::string str_offset;
@@ -441,6 +425,7 @@ std::ofstream fproc(mout->fname_processed);
         return 1;
     }
     return 0;
+#endif // USE_DYNINST
 }
 
 int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files)
@@ -466,7 +451,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
     Dyninst::Offset ip;
     std::string line, ip_str;
     int tmp_line = 0;
-    LOG_MEDIUM("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
+    LOG_HIGH("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
 
     while(std::getline(fraw, line).good())
     {
@@ -493,14 +478,6 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         if(sym_success)
         {
             source = (string)stats[0]->getFile();
-            if (!mout->dname_srcdir_orig.empty())
-            {
-                std::size_t pos = source.find(mout->dname_srcdir_orig);
-                if(pos == 0){
-                    source = source.substr(mout->dname_srcdir_orig.length() + (mout->dname_srcdir_orig.back() == '/' ? 0 : 1)); //to remove slash if there is none in the string
-                }
-
-            }
             line_num << stats[0]->getLine();
         }
         if(!source.empty()){
@@ -548,8 +525,6 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         std::cerr << "Mitos: Failed to delete raw sample file!\n";
         return 1;
     }
-
-#endif // USE_DYNINST
 
     return 0;
 }

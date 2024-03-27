@@ -52,7 +52,7 @@ void matmul(int N, double *a, double *b, double *c)
 int main(int argc, char **argv)
 {
     int N = (argc == 2) ? atoi(argv[1]) : 1024;
-    save_virtual_address_offset("virt_address.txt");
+    save_virtual_address_offset("/tmp/mitos_virt_address.txt");
     double *a,*b,*c;
     init_matrices(N,&a,&b,&c);
     matmul(N,a,b,c);

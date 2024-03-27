@@ -31,9 +31,8 @@ void save_virtual_address_offset(std::string filename) {
 
     fproc.close();
     std::ofstream f_addr;
-    std::string file_path = "/tmp/" + filename;
-    std::cout << "Output: " << file_path << std::endl;
-    f_addr.open(file_path);
+    std::cout << "Output: " << filename << std::endl;
+    f_addr.open(filename);
     f_addr << (long long)link_map->l_addr << std::endl;
     f_addr.close();
     // -------------------

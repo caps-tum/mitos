@@ -62,7 +62,7 @@ long ts_output = 0;
 
 void sample_handler(perf_event_sample *sample, void *args)
 {
-    LOG_MEDIUM("mitoshooks.cpp: sample_handler(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
+    LOG_HIGH("mitoshooks.cpp: sample_handler(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
     Mitos_write_sample(sample, &mout);
 }
 
@@ -77,12 +77,14 @@ int MPI_Init(int *argc, char ***argv)
     MPI_Bcast(&ts_output, 1, MPI_LONG, 0, MPI_COMM_WORLD);
     // send timestamp from rank 0 to all others to synchronize folder prefix
 
-    char rank_prefix[48];
-    sprintf(rank_prefix, "%ld_rank_%d_", ts_output, mpi_rank);
+    char rank_prefix[54];
+    sprintf(rank_prefix, "mitos_%ld_rank_%d_", ts_output, mpi_rank);
 
-    virt_address = new char[strlen(rank_prefix) + 1];
-    strcpy(virt_address, rank_prefix);
-    save_virtual_address_offset(std::string(rank_prefix) + std::string("virt_address.txt"));
+    virt_address = new char[(strlen(rank_prefix) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
+    strcpy(virt_address, "/tmp/");
+    strcat(virt_address, rank_prefix);
+    strcat(virt_address, "virt_address.txt");
+    save_virtual_address_offset(std::string(virt_address));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_THRESH;
@@ -112,8 +114,8 @@ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
     int mpi_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
 
-    char rank_prefix[32];
-    sprintf(rank_prefix, "rank_%d", mpi_rank);
+    char rank_prefix[38];
+    sprintf(rank_prefix, "mitos_rank_%d", mpi_rank);
     
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
@@ -143,11 +145,11 @@ int MPI_Finalize()
     Mitos_add_offsets(virt_address, &mout);
     // merge files
     if (mpi_rank == 0) {
-        int ret_val = Mitos_merge_files(std::to_string(ts_output) + "_rank_", std::to_string(ts_output) + "_rank_0");
+        int ret_val = Mitos_merge_files(std::string("mitos_") + std::to_string(ts_output) + "_rank_", std::string("mitos_") + std::to_string(ts_output) + "_rank_0");
         Mitos_openFile("/proc/self/exe", &mout);
         std::set<std::string> src_files;
         mitos_output result_mout;
-        std::string result_dir = std::to_string(ts_output) + "_rank_result";
+        std::string result_dir = "mitos_" + std::to_string(ts_output) + "_rank_result";
         Mitos_set_result_mout(&result_mout, result_dir.c_str());    
         Mitos_post_process("/proc/self/exe", &result_mout, src_files);
         Mitos_copy_sources(result_dir, src_files);
@@ -164,7 +166,7 @@ int MPI_Finalize()
 
 void sample_handler_omp(perf_event_sample *sample, void *args)
 {
-    LOG_MEDIUM("mitoshooks.cpp: sample_handler_omp(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
+    LOG_HIGH("mitoshooks.cpp: sample_handler_omp(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
     Mitos_write_sample(sample, &mout);
 }
 
@@ -203,23 +205,25 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     LOG_MEDIUM("mitoshooks.cpp: on_ompt_callback_thread_begin(), Start Thread OMP:= " << getpid()
          << " tid= "  << tid << " omp_tid= "  << tid_omp << " cpu_id= "  << cpu_num);
 #endif
-    char rank_prefix[48];
-    sprintf(rank_prefix, "%ld_openmp_distr_mon_%d_", ts_output_prefix_omp, tid);
+    char rank_prefix[54];
+    sprintf(rank_prefix, "mitos_%ld_openmp_distr_mon_%d_", ts_output_prefix_omp, tid);
     Mitos_create_output(&mout, rank_prefix);
 #if CURRENT_VERBOSITY >= VERBOSE_MEDIUM
    pid_t curpid = getpid();
    LOG_MEDIUM("mitoshooks.cpp: on_ompt_callback_thread_begin(), Curpid:= " << curpid);
 #endif
-    virt_address = new char[strlen(rank_prefix) + 1];
-    strcpy(virt_address, rank_prefix);
-    save_virtual_address_offset(std::string(rank_prefix) + std::string("virt_address.txt"));
+    virt_address = new char[(strlen(rank_prefix) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
+    strcpy(virt_address, "/tmp/");
+    strcat(virt_address, rank_prefix);
+    strcat(virt_address, "virt_address.txt");
+    save_virtual_address_offset(std::string(virt_address));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_THRESH;
     Mitos_get_environment_variables(sampling_period, latency_threshold);
 
     Mitos_pre_process(&mout);
-    Mitos_set_pid(getpid());
+    Mitos_set_pid(tid);
 
     Mitos_set_handler_fn(&sample_handler_omp,NULL);
     Mitos_set_sample_latency_threshold(latency_threshold);
@@ -269,7 +273,7 @@ void ompt_finalize(ompt_data_t *tool_data) {
            omp_get_wtime() - *(double *) (tool_data->ptr));
 
     printf("End Sampler...\n");
-    Mitos_merge_files(std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
+    Mitos_merge_files("mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
     {
         auto bin_name = [](pid_t pid) -> std::string {    
             char buffer[1024];
@@ -291,7 +295,7 @@ void ompt_finalize(ompt_data_t *tool_data) {
         };   
         std::cout << "\n*******************************************************************\n\n";
         std::cout << "Samples collected and written as raw data. Run the following command for post-processing the samples: \n ";
-        std::cout << "./demo_post_process " <<bin_name(getpid()) << " " + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult\n";                    
+        std::cout << "./mitos_post_process " <<bin_name(getpid()) << " mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult\n";                    
         std::cout << "\n*******************************************************************\n\n";    
     }
         
