@@ -20,7 +20,7 @@ uint64_t thresh;
 mitos_output mout;
 std::vector<perf_event_sample> samples;
 pid_t child_pid;
-
+static std::string address_file;
 /* Helper function for writing samples.*/
 void dump_samples()
 {
@@ -54,6 +54,7 @@ void usage(char **argv)
     std::cerr << "        -b sample buffer size (default 4096)" << std::endl;
     std::cerr << "        -p sample period (default 4000)" << std::endl;
     std::cerr << "        -t sample latency threshold (default 10)" << std::endl;
+    std::cerr << "        -v location of virtual address file (default /tmp/virt_address.txt)" << std::endl;
     std::cerr << "    <cmd>: command to sample on (required)" << std::endl;
     std::cerr << "    [args]: command arguments" << std::endl;
 }
@@ -65,6 +66,7 @@ void set_defaults()
     period = DEFAULT_PERIOD;
     thresh = DEFAULT_THRESH;
     mout.dname_srcdir_orig = "";
+    address_file = "/tmp/virt_address.txt";
 }
 
 /* Parses command line arguments.*/
@@ -73,7 +75,7 @@ int parse_args(int argc, char **argv)
     set_defaults();
 
     int c;
-    while((c=getopt(argc, argv, "b:p:t:s:")) != -1)
+    while((c=getopt(argc, argv, "b:p:t:v:")) != -1)
     {
         switch(c)
         {
@@ -86,6 +88,10 @@ int parse_args(int argc, char **argv)
             case 't':
                 thresh = atoi(optarg);
                 break;
+            case 'v':
+                address_file = optarg;
+                std::cout << address_file << "\n\n";
+                break;    
             case '?':
                 usage(argv);
                 return 1;
@@ -194,7 +200,7 @@ int main(int argc, char **argv)
         std::cout << "Command completed! Processing samples..." <<  "\n";
         std::cout << "Bin Name" << argv[cmdarg] <<  "\n";
         std::set<std::string> src_files;
-        Mitos_add_offsets("", &mout);
+        Mitos_add_offsets(address_file.c_str(), &mout);
         if(Mitos_openFile(argv[cmdarg], &mout))
         {
             std::cerr << "Error opening binary file!" << std::endl;

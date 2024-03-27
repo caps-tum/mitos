@@ -80,9 +80,11 @@ int MPI_Init(int *argc, char ***argv)
     char rank_prefix[54];
     sprintf(rank_prefix, "mitos_%ld_rank_%d_", ts_output, mpi_rank);
 
-    virt_address = new char[strlen(rank_prefix) + 1];
-    strcpy(virt_address, rank_prefix);
-    save_virtual_address_offset(std::string(rank_prefix) + std::string("virt_address.txt"));
+    virt_address = new char[(strlen(rank_prefix) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
+    strcpy(virt_address, "/tmp/");
+    strcat(virt_address, rank_prefix);
+    strcat(virt_address, "virt_address.txt");
+    save_virtual_address_offset(std::string(virt_address));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_THRESH;
@@ -210,9 +212,11 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
    pid_t curpid = getpid();
    LOG_MEDIUM("mitoshooks.cpp: on_ompt_callback_thread_begin(), Curpid:= " << curpid);
 #endif
-    virt_address = new char[strlen(rank_prefix) + 1];
-    strcpy(virt_address, rank_prefix);
-    save_virtual_address_offset(std::string(rank_prefix) + std::string("virt_address.txt"));
+    virt_address = new char[(strlen(rank_prefix) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
+    strcpy(virt_address, "/tmp/");
+    strcat(virt_address, rank_prefix);
+    strcat(virt_address, "virt_address.txt");
+    save_virtual_address_offset(std::string(virt_address));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_THRESH;

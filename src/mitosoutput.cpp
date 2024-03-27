@@ -326,7 +326,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
 int Mitos_add_offsets(const char * virt_address, mitos_output *mout){
 
     // Read the virtual address
-    std::string loc = std::string("/tmp/") + std::string(virt_address) + std::string("virt_address.txt");
+    std::string loc = virt_address;
     std::ifstream foffset(loc);
     long long offsetAddr = 0;
     std::string str_offset;
