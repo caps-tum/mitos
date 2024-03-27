@@ -54,7 +54,7 @@ void usage(char **argv)
     std::cerr << "        -b sample buffer size (default 4096)" << std::endl;
     std::cerr << "        -p sample period (default 4000)" << std::endl;
     std::cerr << "        -t sample latency threshold (default 10)" << std::endl;
-    std::cerr << "        -v location of virtual address file (default /tmp/virt_address.txt)" << std::endl;
+    std::cerr << "        -l location of virtual address file (default /tmp/mitos_virt_address.txt)" << std::endl;
     std::cerr << "    <cmd>: command to sample on (required)" << std::endl;
     std::cerr << "    [args]: command arguments" << std::endl;
 }
@@ -66,7 +66,7 @@ void set_defaults()
     period = DEFAULT_PERIOD;
     thresh = DEFAULT_THRESH;
     mout.dname_srcdir_orig = "";
-    address_file = "/tmp/virt_address.txt";
+    address_file = "/tmp/mitos_virt_address.txt";
 }
 
 /* Parses command line arguments.*/
@@ -75,7 +75,7 @@ int parse_args(int argc, char **argv)
     set_defaults();
 
     int c;
-    while((c=getopt(argc, argv, "b:p:t:v:")) != -1)
+    while((c=getopt(argc, argv, "b:p:t:l:")) != -1)
     {
         switch(c)
         {
@@ -88,7 +88,7 @@ int parse_args(int argc, char **argv)
             case 't':
                 thresh = atoi(optarg);
                 break;
-            case 'v':
+            case 'l':
                 address_file = optarg;
                 break;    
             case '?':

@@ -19,7 +19,7 @@ void do_something_single_thread() {
 }
 
 int main() {
-    save_virtual_address_offset("/tmp/virt_address.txt");
+    save_virtual_address_offset("/tmp/mitos_virt_address.txt");
     do_something_single_thread();
     #pragma omp parallel default(none) num_threads(8)
     {
