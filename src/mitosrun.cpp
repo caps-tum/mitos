@@ -90,7 +90,6 @@ int parse_args(int argc, char **argv)
                 break;
             case 'v':
                 address_file = optarg;
-                std::cout << address_file << "\n\n";
                 break;    
             case '?':
                 usage(argv);
