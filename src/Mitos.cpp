@@ -1,68 +1,60 @@
 #include "Mitos.h"
 
-#include "perfsmpl.h"
+#include "procsmpl.h"
 #include "mattr.h"
 
-static perfsmpl m_perfsmpl;
+static procsmpl m_procsmpl;
 static mattr m_mattr;
 
-void Mitos_set_sample_mode(sample_mode m) 
-{ 
-    m_perfsmpl.set_sample_mode(m); 
+void Mitos_set_pid(pid_t pid) {
+    m_procsmpl.set_pid(pid);
 }
 
-void Mitos_set_sample_period(uint64_t p) 
+void Mitos_set_sample_time_frequency(uint64_t p) 
 { 
-    m_perfsmpl.set_sample_period(p); 
+    m_procsmpl.set_sample_time_frequency(p); 
 }
 
-void Mitos_set_sample_threshold(uint64_t t) 
+void Mitos_set_sample_event_period(uint64_t p) 
 { 
-    m_perfsmpl.set_sample_threshold(t); 
+    m_procsmpl.set_sample_event_period(p); 
+}
+
+void Mitos_set_sample_latency_threshold(uint64_t t) 
+{ 
+    m_procsmpl.set_sample_latency_threshold(t); 
 }
 
 void Mitos_set_handler_fn(sample_handler_fn_t h, void* args) 
 {
-    m_perfsmpl.set_handler_fn(h,args); 
-}
-
-void Mitos_set_end_fn(end_fn_t h, void* args) 
-{
-    m_perfsmpl.set_end_fn(h,args); 
-}
-
-void Mitos_prepare(pid_t pid) 
-{
-    m_perfsmpl.prepare(pid); 
+    m_procsmpl.set_handler_fn(h,args); 
 }
 
 void Mitos_begin_sampler() 
 {
-    m_perfsmpl.begin_sampler(); 
+    m_procsmpl.begin_sampling(); 
 }
 
 void Mitos_end_sampler() 
 {
-    m_perfsmpl.end_sampler(); 
+    m_procsmpl.end_sampling(); 
 }
+
 
 void Mitos_add_symbol(const char* n, void *a, size_t s, size_t *dims, unsigned int ndims)
 {
     m_mattr.add_symbol(n,a,s,dims,ndims); 
 }
 
-void Mitos_resolve_symbol(struct perf_event_sample *s)
+void Mitos_remove_symbol(const char* n)
+{
+	m_mattr.remove_symbol(n);
+}
+
+int Mitos_resolve_symbol(struct perf_event_sample *s)
 {
     mem_symbol *m = m_mattr.find_symbol(s->addr);
-    if(m)
-    {
-        s->data_size = m->get_sz();
-        s->num_dims = m->get_num_dims();
-        s->data_symbol = m->get_name();
-
-        m->get_index(s->addr, s->access_index);
-    }
-    else
+    if(!m)
     {
         s->data_size = 0;
         s->num_dims = 1;
@@ -70,7 +62,16 @@ void Mitos_resolve_symbol(struct perf_event_sample *s)
         s->access_index[1] = 0;
         s->access_index[2] = 0;
         s->data_symbol = "??";
+
+        return 1;
     }
+    s->data_size = m->get_sz();
+    s->num_dims = m->get_num_dims();
+    s->data_symbol = m->get_name();
+
+    m->get_index(s->addr, s->access_index);
+
+    return 0;
 }
 
 long Mitos_x_index(struct perf_event_sample *s)
@@ -108,3 +109,4 @@ long Mitos_z_index(struct perf_event_sample *s)
     }
     return -1;
 }
+

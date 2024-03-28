@@ -17,10 +17,13 @@
 
 #define NRA 1024                 /* number of rows in matrix A */
 #define NCA 1024                 /* number of columns in matrix A */
-#define NCB 512                  /* number of columns in matrix B */
+#define NCB 1024                  /* number of columns in matrix B */
 #define MASTER 0               /* taskid of first task */
 #define FROM_MASTER 1          /* setting a message type */
 #define FROM_WORKER 2          /* setting a message type */
+double	a[NRA][NCA],           /* matrix A to be multiplied */
+b[NCA][NCB],           /* matrix B to be multiplied */
+c[NRA][NCB];           /* result matrix C */
 
 int main (int argc, char *argv[])
 {
@@ -33,10 +36,7 @@ int main (int argc, char *argv[])
 	    rows,                  /* rows of matrix A sent to each worker */
 	    averow, extra, offset, /* used to determine rows sent to each worker */
 	    i, j, k, rc;           /* misc */
-    double	a[NRA][NCA],           /* matrix A to be multiplied */
-            b[NCA][NCB],           /* matrix B to be multiplied */
-            c[NRA][NCB];           /* result matrix C */
-            MPI_Status status;
+        MPI_Status status;
 
     MPI_Init(&argc,&argv);
     MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
@@ -68,7 +68,7 @@ int main (int argc, char *argv[])
       mtype = FROM_MASTER;
       for (dest=1; dest<=numworkers; dest++)
       {
-         rows = (dest <= extra) ? averow+1 : averow;   	
+         rows = (dest <= extra) ? averow+1 : averow;
          printf("Sending %d rows to task %d offset=%d\n",rows,dest,offset);
          MPI_Send(&offset, 1, MPI_INT, dest, mtype, MPI_COMM_WORLD);
          MPI_Send(&rows, 1, MPI_INT, dest, mtype, MPI_COMM_WORLD);
@@ -85,7 +85,7 @@ int main (int argc, char *argv[])
          source = i;
          MPI_Recv(&offset, 1, MPI_INT, source, mtype, MPI_COMM_WORLD, &status);
          MPI_Recv(&rows, 1, MPI_INT, source, mtype, MPI_COMM_WORLD, &status);
-         MPI_Recv(&c[offset][0], rows*NCB, MPI_DOUBLE, source, mtype, 
+         MPI_Recv(&c[offset][0], rows*NCB, MPI_DOUBLE, source, mtype,
                   MPI_COMM_WORLD, &status);
          printf("Received results from task %d\n",source);
       }
@@ -96,8 +96,8 @@ int main (int argc, char *argv[])
       printf("Result Matrix:\n");
       for (i=0; i<NRA; i++)
       {
-         printf("\n"); 
-         for (j=0; j<NCB; j++) 
+         printf("\n");
+         for (j=0; j<NCB; j++)
             printf("%6.2f   ", c[i][j]);
       }
       printf("\n******************************************************\n");

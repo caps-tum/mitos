@@ -1,5 +1,4 @@
 #include <hwloc.h>
-
 int dump_hardware_xml(const char *filename)
 {
     int err;
@@ -27,7 +26,7 @@ int dump_hardware_xml(const char *filename)
         return 1;
     }
 
-    err = hwloc_topology_export_xml(topology, "hardware.xml", 0);
+    err = hwloc_topology_export_xml(topology, filename, 0);
     if(err)
     {
         std::cerr << "hwloc: Failed to export xml" << std::endl;

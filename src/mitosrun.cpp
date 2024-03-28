@@ -19,23 +19,33 @@ uint64_t thresh;
 
 mitos_output mout;
 std::vector<perf_event_sample> samples;
-
+pid_t child_pid;
+static std::string address_file;
+/* Helper function for writing samples.*/
 void dump_samples()
 {
+    LOG_LOW("mitosrun.cpp:dump_samples(), Total " << samples.size() << " sample(s)");
     for(size_t i=0; i<samples.size(); i++)
         Mitos_write_sample(&samples.at(i), &mout);
     samples.clear();
 }
 
+/*Write samples information in the output file.*/
 void sample_handler(perf_event_sample *sample, void *args)
 {
-
+#if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
+    if (sample->pid == child_pid){
+        samples.push_back(*sample);
+    }
+#else // PEBS (Intel)
     samples.push_back(*sample);
+#endif // USE_IBS_FETCH || USE_IBS_OP
 
     if(samples.size() >= bufsz)
         dump_samples();
 }
 
+/* Prints usage information.*/
 void usage(char **argv)
 {
     std::cerr << "Usage:" << std::endl;
@@ -44,25 +54,27 @@ void usage(char **argv)
     std::cerr << "        -b sample buffer size (default 4096)" << std::endl;
     std::cerr << "        -p sample period (default 4000)" << std::endl;
     std::cerr << "        -t sample latency threshold (default 10)" << std::endl;
-    std::cerr << "        -s top folder of source code to copy" << std::endl;
+    std::cerr << "        -l location of virtual address file (default /tmp/mitos_virt_address.txt)" << std::endl;
     std::cerr << "    <cmd>: command to sample on (required)" << std::endl;
     std::cerr << "    [args]: command arguments" << std::endl;
 }
 
+/* Sets default values for the sampler.*/
 void set_defaults()
 {
     bufsz = DEFAULT_BUFSZ;
     period = DEFAULT_PERIOD;
     thresh = DEFAULT_THRESH;
-    mout.dname_srcdir_orig = "";
+    address_file = "/tmp/mitos_virt_address.txt";
 }
 
+/* Parses command line arguments.*/
 int parse_args(int argc, char **argv)
 {
     set_defaults();
 
     int c;
-    while((c=getopt(argc, argv, "b:p:t:s:")) != -1)
+    while((c=getopt(argc, argv, "b:p:t:l:")) != -1)
     {
         switch(c)
         {
@@ -75,9 +87,9 @@ int parse_args(int argc, char **argv)
             case 't':
                 thresh = atoi(optarg);
                 break;
-            case 's':
-                mout.dname_srcdir_orig = optarg;
-                break;
+            case 'l':
+                address_file = optarg;
+                break;    
             case '?':
                 usage(argv);
                 return 1;
@@ -89,6 +101,7 @@ int parse_args(int argc, char **argv)
     return 0;
 }
 
+/* Finds the index of the command to execute.*/
 int findCmdArgId(int argc, char **argv)
 {
     // case 1: argv[0] -f1000 cmd
@@ -147,8 +160,11 @@ int main(int argc, char **argv)
     {
         int status;
         wait(&status);
+#if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
+        child_pid = child;
+#endif // USE_IBS_FETCH || USE_IBS_OP
 
-        int err = Mitos_create_output(&mout);
+        int err = Mitos_create_output(&mout, "mitos");
         if(err)
         {
             kill(child, SIGKILL);
@@ -161,34 +177,39 @@ int main(int argc, char **argv)
             kill(child, SIGKILL);
             return 1;
         }
-
-        Mitos_set_sample_mode(SMPL_MEMORY);
-        Mitos_set_sample_period(period);
-        Mitos_set_sample_threshold(thresh);
+        Mitos_set_pid(child);
+        LOG_MEDIUM("mitosrun.cpp:main(), pid: " << child);
+        Mitos_set_sample_event_period(period);
+        Mitos_set_sample_latency_threshold(thresh);
 
         Mitos_set_handler_fn(&sample_handler,NULL);
-
-        Mitos_prepare(child);
 
         Mitos_begin_sampler();
         {
             ptrace(PTRACE_CONT,child,0,0);
 
             // Wait until process exits
-            do { wait(&status); } 
+            do { wait(&status); }
             while(!WIFEXITED(status));
         }
         Mitos_end_sampler();
-
+        LOG_LOW("mitosrun.cpp:main(), Dumping leftover samples...");
         dump_samples(); // anything left over
-
-        std::cout << "Command completed! Processing samples...\n" << std::endl;
-
-        err = Mitos_post_process(argv[cmdarg],&mout);
-        if(err)
+        std::cout << "Command completed! Processing samples..." <<  "\n";
+        std::cout << "Bin Name" << argv[cmdarg] <<  "\n";
+        std::set<std::string> src_files;
+        Mitos_add_offsets(address_file.c_str(), &mout);
+        if(Mitos_openFile(argv[cmdarg], &mout))
+        {
+            std::cerr << "Error opening binary file!" << std::endl;
             return 1;
-
-        std::cout << "Done!\n" << std::endl;
+        }
+        if(Mitos_post_process(argv[cmdarg],&mout, src_files)){
+            std::cerr << "Error post processing!" << std::endl;
+            return 1;
+        }
+        Mitos_copy_sources(mout.dname_topdir, src_files);   
+        std::cout << "Done!\n";
     }
 
     return 0;

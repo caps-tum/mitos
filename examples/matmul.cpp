@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include <omp.h>
+#include "src/virtual_address_writer.h"
 
 #define ROW_MAJOR(x,y,width) y*width+x
 
@@ -26,7 +27,11 @@ void init_matrices(int N, double **a, double **b, double **c)
 
 void matmul(int N, double *a, double *b, double *c)
 {
-#pragma omp parallel for
+#pragma omp parallel
+{
+    printf("Hello from thread %i of %i!\n", omp_get_thread_num(),
+               omp_get_num_threads());
+    #pragma omp for
     for(int i=0; i<N; ++i)
     {
         for(int j=0; j<N; ++j)
@@ -37,6 +42,7 @@ void matmul(int N, double *a, double *b, double *c)
             }
         }
     }
+}
 
     int randx = N*((float)rand() / (float)RAND_MAX+1);
     int randy = N*((float)rand() / (float)RAND_MAX+1);
@@ -46,6 +52,7 @@ void matmul(int N, double *a, double *b, double *c)
 int main(int argc, char **argv)
 {
     int N = (argc == 2) ? atoi(argv[1]) : 1024;
+    save_virtual_address_offset("/tmp/mitos_virt_address.txt");
     double *a,*b,*c;
     init_matrices(N,&a,&b,&c);
     matmul(N,a,b,c);
