@@ -92,7 +92,7 @@ int MPI_Init(int *argc, char ***argv)
 
     Mitos_create_output(&mout, rank_prefix);
     pid_t curpid = getpid();
-    std::cout << "Curpid: " << curpid << ", Rank: " << mpi_rank << std::endl;
+    LOG_LOW("mitoshooks.cpp: MPI_Init(), Curpid: " << curpid << ", Rank: " << mpi_rank);
 
     Mitos_pre_process(&mout);
     Mitos_set_pid(curpid);
@@ -101,6 +101,7 @@ int MPI_Init(int *argc, char ***argv)
     Mitos_set_sample_latency_threshold(latency_threshold);
     Mitos_set_sample_event_period(sampling_period);
     Mitos_set_sample_time_frequency(4000);
+    std::cout << "Begin sampler, rank: " << mpi_rank << "\n";
     Mitos_begin_sampler();
 
     return ret;
