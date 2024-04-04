@@ -200,7 +200,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     if (tid_omp_first == -1) {
         tid_omp_first = tid;
     }
-#if CURRENT_VERBOSITY >= VERBOSE_MEDIUM
+#if VERBOSITY >= VERBOSE_MEDIUM
     int cpu_num = sched_getcpu();
     LOG_MEDIUM("mitoshooks.cpp: on_ompt_callback_thread_begin(), Start Thread OMP:= " << getpid()
          << " tid= "  << tid << " omp_tid= "  << tid_omp << " cpu_id= "  << cpu_num);
@@ -208,7 +208,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     char rank_prefix[54];
     sprintf(rank_prefix, "mitos_%ld_openmp_distr_mon_%d_", ts_output_prefix_omp, tid);
     Mitos_create_output(&mout, rank_prefix);
-#if CURRENT_VERBOSITY >= VERBOSE_MEDIUM
+#if VERBOSITY >= VERBOSE_MEDIUM
    pid_t curpid = getpid();
    LOG_MEDIUM("mitoshooks.cpp: on_ompt_callback_thread_begin(), Curpid:= " << curpid);
 #endif
@@ -252,12 +252,13 @@ static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
 
 int ompt_initialize(ompt_function_lookup_t lookup, int initial_device_num,
                     ompt_data_t *tool_data) {
-    printf("libomp init time: %f\n",
-           omp_get_wtime() - *(double *) (tool_data->ptr));
+    LOG_LOW("mitoshooks.cpp: ompt_initialize(), libomp init time: " 
+            << omp_get_wtime() - *(double *) (tool_data->ptr));
     *(double *) (tool_data->ptr) = omp_get_wtime();
     // initialize callback
     ompt_set_callback_t ompt_set_callback =
             (ompt_set_callback_t)lookup("ompt_set_callback");
+    printf("Beginning sampler\n");
     register_callback(ompt_callback_thread_begin);
     register_callback(ompt_callback_thread_end);
 
@@ -269,8 +270,8 @@ int ompt_initialize(ompt_function_lookup_t lookup, int initial_device_num,
 }
 
 void ompt_finalize(ompt_data_t *tool_data) {
-    printf("[OMP Finalize] application runtime: %f\n",
-           omp_get_wtime() - *(double *) (tool_data->ptr));
+    LOG_LOW("mitoshooks.cpp: ompt_finalize(), application runtime: " 
+            << omp_get_wtime() - *(double *) (tool_data->ptr));
 
     printf("End Sampler...\n");
     Mitos_merge_files("mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));

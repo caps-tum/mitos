@@ -16,12 +16,14 @@
 #define VERBOSE_HIGH 3
 
 // Set the current verbosity level (change this value to adjust verbosity)
-#define CURRENT_VERBOSITY VERBOSE_LOW
+#ifndef VERBOSITY 
+#define VERBOSITY 0 
+#endif
 
 // Verbose output macros
-#define LOG_LOW(message) do { if (CURRENT_VERBOSITY >= VERBOSE_LOW) std::cout << "[LOW] " << message << std::endl; } while(0)
-#define LOG_MEDIUM(message) do { if (CURRENT_VERBOSITY >= VERBOSE_MEDIUM) std::cout << "[MEDIUM] " << message << std::endl; } while(0)
-#define LOG_HIGH(message) do { if (CURRENT_VERBOSITY >= VERBOSE_HIGH) std::cout << "[HIGH] " << message << std::endl; } while(0)
+#define LOG_LOW(message) do { if (VERBOSITY >= VERBOSE_LOW) std::cout << "[LOW] " << message << std::endl; } while(0)
+#define LOG_MEDIUM(message) do { if (VERBOSITY >= VERBOSE_MEDIUM) std::cout << "[MEDIUM] " << message << std::endl; } while(0)
+#define LOG_HIGH(message) do { if (VERBOSITY >= VERBOSE_HIGH) std::cout << "[HIGH] " << message << std::endl; } while(0)
 
 
 struct mem_symbol;

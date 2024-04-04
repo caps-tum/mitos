@@ -75,13 +75,13 @@ void update_sampling_events() {
     // - try to disable old monitored core
     // function completes if enable thread was successful
     // possible disadvantage: function only completes if enable_event has been successful (no other IBS process runs on same core)
-#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+#if VERBOSITY >= VERBOSE_HIGH
    int has_switch = 0;
    struct timespec tp;
    struct timespec tp2;
    clockid_t clk_id = CLOCK_PROCESS_CPUTIME_ID;
    int t_start2 = clock_gettime(clk_id, &tp);
-#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
+#endif // VERBOSITY >= VERBOSE_HIGH
     while(ret != 0) {
         int active_core = get_psr(); // OLD function
         //int active_core = sched_getcpu(); // this function only works on mitoshooks, monitoring occurs on same thread as computation
@@ -93,23 +93,23 @@ void update_sampling_events() {
         }
         for (int i = 0; i < tsmp.num_events; i++) {
             if (active_core == i) {
-            #if CURRENT_VERBOSITY >= VERBOSE_HIGH
+            #if VERBOSITY >= VERBOSE_HIGH
                has_switch =  !(tsmp.events[i].running);
-            #endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
+            #endif // VERBOSITY >= VERBOSE_HIGH
                 ret = tsmp.enable_event(active_core);
             }else {
                 tsmp.disable_event(i);
             }
         }
     }
-#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+#if VERBOSITY >= VERBOSE_HIGH
     clock_t t_end = clock();
     float seconds = (float)(t_end - t_start) / CLOCKS_PER_SEC;
    int t_end2 = clock_gettime(clk_id, &tp2);
    LOG_HIGH ("procsmpl.cpp:update_sampling_events(), has_switch: " << has_switch << "," << (tp2.tv_nsec - tp.tv_nsec));
    LOG_HIGH ("procsmpl.cpp:update_sampling_events(), has_switch: " << has_switch << "," << seconds);
     float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
-#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
+#endif // VERBOSITY >= VERBOSE_HIGH
 }
 
 void thread_sighandler(int sig, siginfo_t *info, void *extra)
@@ -133,9 +133,9 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
     }
 
     ioctl(fd, PERF_EVENT_IOC_REFRESH, 1);
-#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+#if VERBOSITY >= VERBOSE_HIGH
    clock_t time_process_end = clock();
-#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
+#endif // VERBOSITY >= VERBOSE_HIGH
 #if defined( USE_IBS_THREAD_MIGRATION)
     tsmp.counter_update++;
     if(tsmp.counter_update >= 250) {
@@ -143,12 +143,12 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
         update_sampling_events();
     }
 #endif // USE_IBS_THREAD_MIGRATION
-#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+#if VERBOSITY >= VERBOSE_HIGH
     double t_end = ((double) clock())/ CLOCKS_PER_SEC;
     float seconds = (float)(time_process_end - start) / CLOCKS_PER_SEC;
     float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
     LOG_HIGH ("procsmpl.cpp:thread_sighandler(), t_start: " t_start <<", t_end: " << t_end << ", gettid(): " << gettid() << ", fd: " << fd << ", sched_getcpu(): " << sched_getcpu());
-#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
+#endif // VERBOSITY >= VERBOSE_HIGH
 }
 
 
@@ -422,7 +422,7 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
 
         // Initialize perf_event call
         events[i].fd = perf_event_open(&events[i].attr, tsmp.proc_parent->target_pid, -1, events[0].fd, 0);
-        std::cout << "event no.(i): " << i << ", file descriptor(fd): "<< events[i].fd << "\n";
+        LOG_LOW("procsmpl.cpp:init_perf_events(), event no.(i): " << i << ", file descriptor(fd): "<< events[i].fd);
 
         if(events[i].fd == -1)
         {

@@ -15,7 +15,7 @@
 * This helps in locating the source code of the executable
     using the instruction pointers obtained through the samples.
 * This function must be included in the source code of the executable */
-void save_virtual_address_offset(std::string filename) {
+void save_virtual_address_offset(std::string filename, bool verbose = false) {
     // ---------  get virtual address offset -------------------
     void * const handle = dlopen(NULL, RTLD_LAZY);
     assert(handle != 0);
@@ -31,7 +31,8 @@ void save_virtual_address_offset(std::string filename) {
 
     fproc.close();
     std::ofstream f_addr;
-    std::cout << "Output: " << filename << std::endl;
+    if(verbose)
+        std::cout << "Output: " << filename << std::endl;
     f_addr.open(filename);
     f_addr << (long long)link_map->l_addr << std::endl;
     f_addr.close();

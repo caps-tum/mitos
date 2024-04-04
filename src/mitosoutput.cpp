@@ -470,7 +470,8 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         std::string ip_str = line.substr(offset_endpos+1,ip_endpos);
         ip = (Dyninst::Offset)(strtoull(ip_str.c_str(),NULL,0) - offsetAddr);
         if(tmp_line%4000==0)
-            std::cout << "ip: " << ip <<"\n";
+            LOG_MEDIUM("mitosoutput.cpp: Mitos_post_process(), Extracted instruction pointer (ip): " << ip);
+
         // Parse ip for source line info
         std::vector<SymtabAPI::Statement::Ptr> stats;
         sym_success = symtab_obj->getSourceLines(stats, ip);
@@ -648,7 +649,15 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
     std::string path_dir_result = "./"+ dir_prefix;
     // copy source files
 
-    LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copying source files to result folder");
+    std::cout <<  "Copying following source files to result folder: \n";
+    
+    for (const auto &src : src_files)
+    {
+        std::cout << src;
+    }
+    
+    
+    
     std::string path_src_dir = path_dir_result + "/src";
 
     auto common_prefix = [&]() -> std::pair<std::string, int> {    
@@ -676,10 +685,10 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
                 // Extract the substring up to the last occurrence of '/'
                 commonPath.first = prefix.substr(0, lastSlashPos + 1); // Include the '/' in the result
                 commonPath.second = lastSlashPos + 1;
-                std::cout << "\nCommon Path: " << commonPath.first << "\n";
+                LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Common File Path" << commonPath.first);
                 return commonPath;
             } else {
-                std::cout << "No '/' found in the path." << "\n";
+                LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), No '/' found in the path.");
                 return commonPath;
             }
         }
@@ -696,7 +705,7 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
 
     for (auto &path:path_replacements)
     {
-        std::cout << "Original path: " << path.first << ", Modfied path: " << path.second << "\n";
+        LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Original filepath: " << path.first << ", Modfied filepath: " << path.second);
     }
     
 
@@ -724,13 +733,12 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
             // Copy the file
             fs::copy(src_file, temp);
 
-            std::cout << "File copied successfully." << "\n";
         } catch (const std::exception& ex) {
             std::cerr << "Error: " << ex.what() << "\n";
         }   
     }
 
-    LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copied all the files.");
+    std::cout << "Copied all the files. Post-processing finished.\n";
     Mitos_modify_samples(dir_prefix, path_replacements);
     return 0;
 }
