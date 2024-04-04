@@ -452,7 +452,6 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
     std::string line, ip_str;
     int tmp_line = 0;
     LOG_HIGH("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
-
     while(std::getline(fraw, line).good())
     {
         // Unknown values
@@ -526,7 +525,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         std::cerr << "Mitos: Failed to delete raw sample file!\n";
         return 1;
     }
-
+    std::cout << "Collected " << tmp_line << " samples\n";
     return 0;
 }
 
