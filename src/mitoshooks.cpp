@@ -297,7 +297,7 @@ void ompt_finalize(ompt_data_t *tool_data) {
         };   
         std::cout << "\n*******************************************************************\n\n";
         std::cout << "Samples collected and written as raw data. Run the following command for post-processing the samples: \n ";
-        std::cout << "./mitos_post_process " <<bin_name(getpid()) << " mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult\n";                    
+        std::cout << "./mitos_omp_post_process " <<bin_name(getpid()) << " mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult\n";                    
         std::cout << "\n*******************************************************************\n\n";    
     }
         

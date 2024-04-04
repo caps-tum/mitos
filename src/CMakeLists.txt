@@ -14,12 +14,12 @@ add_library(mitoshooks SHARED ${MITOSHOOKS_SRC_FILES} ${MITOS_SRC_FILES})
 
 # Binaries
 add_executable(mitosrun mitosrun.cpp)
-add_executable(mitos_post_process mitos_post_process.cpp)
+add_executable(mitos_omp_post_process mitos_omp_post_process.cpp)
 
 # Linkage
 target_link_libraries(mitos mitoshooks numa hwloc ${CMAKE_THREAD_LIBS_INIT} stdc++fs)
 target_link_libraries(mitosrun mitos)
-target_link_libraries(mitos_post_process mitos common)
+target_link_libraries(mitos_omp_post_process mitos common)
 target_link_libraries(mitoshooks dl)
 
 if(MPI_FOUND)
@@ -37,7 +37,7 @@ install(FILES ${MITOS_HDR_PUBLIC}
 install(TARGETS mitosrun
         EXPORT mitos-targets
         DESTINATION bin)
-install(TARGETS mitos_post_process
+install(TARGETS mitos_omp_post_process
         EXPORT mitos-targets
         DESTINATION bin) 
 install(TARGETS mitos

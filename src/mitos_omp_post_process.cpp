@@ -71,10 +71,5 @@ int main(int argc, char* argv[])
 
     Mitos_post_process(bin_name.c_str(), &mouts, src_files);
 
-    std::cout << "Following source files found:\n";
-    for (auto& str : src_files) {
-        std::cout << str << "\n";
-    }
-
     Mitos_copy_sources(dir_prefix, src_files);
 }
