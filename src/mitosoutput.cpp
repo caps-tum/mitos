@@ -737,7 +737,7 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
         }   
     }
 
-    std::cout << "Copied all the files. Post-processing finished.\n";
+    std::cout << "\nCopied all the files. Post-processing finished.\n";
     Mitos_modify_samples(dir_prefix, path_replacements);
     return 0;
 }
