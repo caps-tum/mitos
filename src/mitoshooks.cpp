@@ -21,8 +21,10 @@
 
 // 512 should be enough for xeon-phi
 #define MAX_THREADS 512
-#define DEFAULT_PERIOD      4000
-#define DEFAULT_THRESH 3
+#define DEFAULT_PERIOD 4000
+#define DEFAULT_LATENCY 4
+#define DEFAULT_FREQ 4000
+
 struct func_args
 {
     void *(*func)(void*);
@@ -34,26 +36,28 @@ thread_local static mitos_output mout;
 thread_local static char* virt_address;
 long ts_output_prefix_omp;
 long tid_omp_first;
+static bool set_period = true;
 
-void Mitos_get_environment_variables(int &sampling_period, int &latency_threshold){
+void Mitos_get_environment_variables(int &sampling_period, int &latency_threshold, int &sampling_frequency){
+
+    const char* latency_input = std::getenv("MITOS_LATENCY_THRESHOLD");
+    latency_threshold = DEFAULT_LATENCY;
+    if (latency_input != nullptr) {
+        latency_threshold = std::atoi(latency_input);
+    } 
+
+    const char* freq_input = std::getenv("MITOS_SAMPLING_FREQUENCY");
+    sampling_frequency = DEFAULT_FREQ;
+    if (freq_input != nullptr) {
+        sampling_frequency = std::atoi(freq_input);
+        set_period = false;
+    }
+
     const char* sampling_input = std::getenv("MITOS_SAMPLING_PERIOD");
     if (sampling_input != nullptr) {
         sampling_period = std::atoi(sampling_input);
-        LOG_LOW("mitoshooks.cpp: Mitos_get_environment_variables(), Using MITOS_SAMPLING_PERIOD = " << sampling_period);
-    } else {
-        LOG_MEDIUM("mitoshooks.cpp: Mitos_get_environment_variables(), MITOS_SAMPLING_PERIOD not set. Using the default value = " << DEFAULT_PERIOD);
+        set_period = true;
     }
-
-    const char* latency_input = std::getenv("MITOS_LATENCY_THRESHOLD");
-    latency_threshold = DEFAULT_THRESH;
-    if (latency_input != nullptr) {
-        latency_threshold = std::atoi(latency_input);
-        LOG_LOW("mitoshooks.cpp: Mitos_get_environment_variables(), Using MITOS_LATENCY_THRESHOLD = " << latency_threshold);
-        std::cout << "Using MITOS_LATENCY_THRESHOLD = " << latency_threshold << "\n";
-    } else {
-        LOG_MEDIUM("mitoshooks.cpp: Mitos_get_environment_variables(), MITOS_LATENCY_THRESHOLD not set. Using the default value = " << DEFAULT_THRESH);
-    }
-
 }
 
 #ifdef USE_MPI
@@ -87,8 +91,9 @@ int MPI_Init(int *argc, char ***argv)
     save_virtual_address_offset(std::string(virt_address));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
-    int latency_threshold = DEFAULT_THRESH;
-    Mitos_get_environment_variables(sampling_period, latency_threshold);
+    int latency_threshold = DEFAULT_LATENCY;
+    int sampling_frequency = DEFAULT_FREQ;
+    Mitos_get_environment_variables(sampling_period, latency_threshold, sampling_frequency);
 
     Mitos_create_output(&mout, rank_prefix);
     pid_t curpid = getpid();
@@ -99,8 +104,16 @@ int MPI_Init(int *argc, char ***argv)
 
     Mitos_set_handler_fn(&sample_handler,NULL);
     Mitos_set_sample_latency_threshold(latency_threshold);
-    Mitos_set_sample_event_period(sampling_period);
-    Mitos_set_sample_time_frequency(4000);
+    std::cout << "Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
+    if(set_period){
+        Mitos_set_sample_event_period(sampling_period);
+        std::cout << "Sampling period: " << sampling_period <<"\n";
+    }
+    else {
+        Mitos_set_sample_time_frequency(sampling_frequency);
+        std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
+    }
+    
     std::cout << "Begin sampler, rank: " << mpi_rank << "\n";
     Mitos_begin_sampler();
 
@@ -120,15 +133,24 @@ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
     
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
-    int latency_threshold = DEFAULT_THRESH;
-    Mitos_get_environment_variables(sampling_period, latency_threshold);
+    int latency_threshold = DEFAULT_LATENCY;
+    int sampling_frequency = DEFAULT_FREQ;
+    Mitos_get_environment_variables(sampling_period, latency_threshold, sampling_frequency);
 
     Mitos_create_output(&mout, rank_prefix);
     Mitos_pre_process(&mout);
 
     Mitos_set_handler_fn(&sample_handler,NULL);
     Mitos_set_sample_latency_threshold(latency_threshold);
-    Mitos_set_sample_time_frequency(4000);
+    std::cout << "Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
+    if(set_period){
+        Mitos_set_sample_event_period(sampling_period);
+        std::cout << "Sampling period: " << sampling_period <<"\n";
+    }
+    else {
+        Mitos_set_sample_time_frequency(sampling_frequency);
+        std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
+    }
     Mitos_begin_sampler();
 
     return ret;
@@ -220,16 +242,25 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     save_virtual_address_offset(std::string(virt_address));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
-    int latency_threshold = DEFAULT_THRESH;
-    Mitos_get_environment_variables(sampling_period, latency_threshold);
+    int latency_threshold = DEFAULT_LATENCY;
+    int sampling_frequency = DEFAULT_FREQ;
+    Mitos_get_environment_variables(sampling_period, latency_threshold, sampling_frequency);
 
     Mitos_pre_process(&mout);
     Mitos_set_pid(tid);
 
     Mitos_set_handler_fn(&sample_handler_omp,NULL);
     Mitos_set_sample_latency_threshold(latency_threshold);
-    Mitos_set_sample_event_period(sampling_period);
-    Mitos_set_sample_time_frequency(4000);
+    std::cout << "Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
+    if(set_period){
+        Mitos_set_sample_event_period(sampling_period);
+        std::cout << "Sampling period: " << sampling_period <<"\n";
+    }
+    else {
+        Mitos_set_sample_time_frequency(sampling_frequency);
+        std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
+    }
+
     Mitos_begin_sampler();
     LOG_LOW("mitoshooks.cpp: on_ompt_callback_thread_begin(), Begin sampling, thread id = " << omp_get_thread_num());
 }

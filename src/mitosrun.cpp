@@ -14,7 +14,7 @@ uint64_t period;
 uint64_t thresh;
 
 #define DEFAULT_BUFSZ       4096
-#define DEFAULT_THRESH      10
+#define DEFAULT_THRESH      4
 #define DEFAULT_PERIOD      4000
 
 mitos_output mout;
