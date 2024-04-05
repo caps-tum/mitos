@@ -645,16 +645,26 @@ int Mitos_modify_samples(const std::string& dir_prefix, const std::map<std::stri
 
 int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string>& src_files) {
     
+    if (src_files.empty()){
+        std::cout << "No source files to found. Check if you compiled your application with `-g` flag.\n";
+        return 0;
+    }
     std::string path_dir_result = "./"+ dir_prefix;
     // copy source files
 
     std::cout <<  "Copying following source files to result folder: \n";
-    
+    int system_file_count = 0;
     for (const auto &src : src_files)
     {
-        std::cout << src;
+        if(src.substr(0,4) != "/usr")  
+        {
+            std::cout << src << "\n";
+        }
+        else ++system_file_count;
     }
-    
+    if(system_file_count > 0) {
+        std::cout << "Skipping " << system_file_count << " system files (Located in /usr/)\n";
+    }
     
     
     std::string path_src_dir = path_dir_result + "/src";
