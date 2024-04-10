@@ -343,7 +343,7 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
                                           const char *runtime_version) {
     static double time = 0; // static defintion needs constant assigment
     time = omp_get_wtime();
-    printf("Init_start_tool: %u \n", getpid());
+    printf("Initiating OMP Hooks start tool: %u \n", getpid());
 
     static ompt_start_tool_result_t ompt_start_tool_result = {
             &ompt_initialize, &ompt_finalize, {.ptr = &time}};

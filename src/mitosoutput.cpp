@@ -98,7 +98,6 @@ int Mitos_create_output(mitos_output *mout, const char *prefix_name)
         return 1;
     }
 
-
     mout->ok = true;
 
     return 0;
@@ -351,7 +350,14 @@ int Mitos_add_offsets(const char * virt_address, mitos_output *mout){
         fraw << modified_line << std::endl;
     }
 
-    fraw.close(); // Close the file
+    // Close the files
+    fraw.close(); 
+
+    /* 
+    * Close the samples.csv and raw_samples.csv opened in Mitos_create_output
+    */
+    fclose(mout->fout_raw);
+    fclose(mout->fout_processed);
     LOG_LOW("mitoshooks.cpp: add_offsets(), Successfully added virtual address at the start of each line.");
     return 0;
 }
@@ -555,8 +561,9 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     fs::create_directory(path_dir_result + "/src");
     // copy first directory
     fs::copy(path_first_dir, path_dir_result, fs::copy_options::overwrite_existing | fs::copy_options::recursive);
+    LOG_LOW("mitosoutput.cpp, Mitos_merge_files(), Deleting " << path_first_dir);
     // delete first folder
-    //fs::remove_all(path_first_dir);
+    fs::remove_all(path_first_dir);
 
     std::string path_samples_dest = path_dir_result + "/data/raw_samples.csv";
     // check if file exist
@@ -587,7 +594,8 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
                     }
                     file_samples_in.close();
                     // delete old folder
-                    //fs::remove_all(dir_entry.path().u8string());
+                    LOG_LOW("mitosoutput.cpp, Mitos_merge_files(), Deleting " << dir_entry.path().u8string());
+                    fs::remove_all(dir_entry.path().u8string());
                 }
             }
         } // END LOOP
