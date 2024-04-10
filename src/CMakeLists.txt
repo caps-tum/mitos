@@ -2,6 +2,13 @@
 include_directories(${MPI_INCLUDE_PATH})
 include_directories(${DYNINST_INCLUDE_DIR})
 
+# If VERBOSITY is not defined via command line, use default
+if(DEFINED VERBOSITY)
+    set(VERBOSITY ${VERBOSITY} CACHE STRING "Set verbosity level")
+    message(STATUS "VERBOSITY set to ${VERBOSITY}")
+    add_definitions(-DVERBOSITY=${VERBOSITY})
+endif()
+
 # Source and header files
 set(MITOS_SRC_FILES procsmpl.cpp mmap_processor.cpp mattr.cpp mitosoutput.cpp Mitos.cpp)
 set(MITOS_HDR_FILES procsmpl.h mmap_processor.h mattr.h Mitos.h)

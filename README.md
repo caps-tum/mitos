@@ -79,8 +79,15 @@ Mitos requires:
        -b sample buffer size (default 4096)
        -p sample period (default 4000)
        -t sample latency threshold (default 10)
-       -s top folder of source code to copy
+       -f sample frequency (default 4000)
+      -l location of virtual address file (default /tmp/mitos_virt_address.txt)
    ```
+   The sampling parameters are chosen in this order of preference :
+   1. By default, use the sampling period
+   2. if sampling frequency is defined, use the sampling frequency
+   3. if sampling period is defined, use the sampling period (even if both the period and frequency are defined)
+
+
    **See the section on `Source Code Attribution` below for more details on how to save the source code information with the samples collected while running your application.**
 
 ## IBS (AMD) Configuration
@@ -135,13 +142,43 @@ The default installation of `mitos` will be configured for Intel based Precise E
    `Mitoshooks` can be fine-tuned by setting these parameters:
 
    ```bash
-   env MITOS_SAMPLING_PERIOD=1000 MITOS_LATENCY_THRESHOLD=10
+   env MITOS_SAMPLING_PERIOD=1000 MITOS_LATENCY_THRESHOLD=10 MITOS_SAMPLING_FREQUENCY=3000
    ```
-   Default value of sampling period is 4000 and that of sample latency threshold is 3. When setting these values, the application can be executed by:
+   Default value of sampling period is 4000 and that of sample latency threshold is 4. However, the sampling parameters are chosen in this order of preference:
+   1. By default, use the sampling period
+   2. if sampling frequency is defined, use the sampling frequency
+   3. if sampling period is defined, use the sampling period (even if both the period and frequency are defined)
+   
+   When setting these values, the application can be executed by:
 
    ```bash
    $> env OMP_TOOL_LIBRARIES=/path/to/mitos-inst-dir/lib/libmitoshooks.so MITOS_SAMPLING_PERIOD=1000 MITOS_LATENCY_THRESHOLD=10 ./omp_example
    ```
+
+   For OpenMP hooks, the post-processing needs to be done after the execution is finished and all the samples have been collected. If the execution was successful, `mitos` will give the instruction on how to do the sampling:
+
+   ```bash
+   Initiating OMP Hooks start tool: 16887
+   Beginning sampler
+Mitos sampling parameters: Latency threshold = 4, Sampling period: 4000
+
+// Application outputs and messages
+
+End Sampler...
+
+*******************************************************************
+
+Samples collected and written as raw data. Run the following command for post-processing the samples: 
+ ./mitos_omp_post_process /path/to/mitos/inst-dir/bin/myExecutable mitos_1712760858_openmp_distr_monresult
+
+*******************************************************************
+   ```
+
+Copy the above command and run:
+
+```bash
+$> ./mitos_omp_post_process /path/to/mitos/inst-dir/bin/myExecutable mitos_1712760858_openmp_distr_monresult
+```
 
 # Source Code Attribution
 
@@ -164,6 +201,10 @@ For instance, if the application saves virtual address by calling `save_virtual_
 ```shell
 ./mitosrun -l /myPath/mitos_virt_address.txt ./myApplication
 ```
+
+# Verbose debug outputs
+
+By default, log messages will just show minimal information. In order to get better outputs, verbosity can be defined by setting `-DVERBOSITY=1|2|3` during compilation. `1` refers to the lowest verbsoiy and `3` to the highest.
 
 # Authors
 
