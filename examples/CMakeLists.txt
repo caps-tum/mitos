@@ -3,10 +3,10 @@ include_directories("..")
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
-add_executable(api_test api_test.cpp)
+add_executable(mitos_api_matmul mitos_api_matmul.cpp)
 add_executable(matmul matmul.cpp)
 
-target_link_libraries(api_test mitos mitoshooks)
+target_link_libraries(mitos_api_matmul mitos mitoshooks)
 target_link_libraries(matmul mitos mitoshooks dl)
 
 if(Dyninst_FOUND)

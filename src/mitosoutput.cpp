@@ -364,7 +364,7 @@ int Mitos_add_offsets(const char * virt_address, mitos_output *mout){
 
 void Mitos_write_samples_header(std::ofstream& fproc) {
     // Write header for processed samples
-    fproc << "source,line,instruction,bytes,offset,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
+    fproc << "source,line,instruction,bytes,virt_addr_offset,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
 #if !defined(USE_IBS_FETCH) && !defined(USE_IBS_OP)
     fproc << "level,hit_type,op_type,snoop_mode,tlb_access,";
 #endif
