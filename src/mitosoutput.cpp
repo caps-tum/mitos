@@ -531,7 +531,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         std::cerr << "Mitos: Failed to delete raw sample file!\n";
         return 1;
     }
-    std::cout << "Collected " << tmp_line << " samples\n";
+    std::cout << "[Mitos] Collected " << tmp_line << " samples\n";
     return 0;
 }
 
@@ -660,7 +660,7 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
     std::string path_dir_result = "./"+ dir_prefix;
     // copy source files
 
-    std::cout <<  "Copying following source files to result folder: \n";
+    std::cout <<  "[Mitos] Copying following source files to result folder: \n";
     int system_file_count = 0;
     for (const auto &src : src_files)
     {
@@ -755,7 +755,7 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
         }   
     }
 
-    std::cout << "\nCopied all the files. Post-processing finished.\n";
+    std::cout << "\n[Mitos] Copied all the files. Post-processing finished.\n";
     Mitos_modify_samples(dir_prefix, path_replacements);
     return 0;
 }

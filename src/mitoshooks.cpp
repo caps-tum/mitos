@@ -72,7 +72,7 @@ void sample_handler(perf_event_sample *sample, void *args)
 
 int MPI_Init(int *argc, char ***argv)
 {
-    fprintf(stderr, "MPI_Init hook\n");
+    fprintf(stderr, "[Mitos] MPI_Init hook\n");
     int ret = PMPI_Init(argc, argv);
 
     int mpi_rank;
@@ -104,17 +104,20 @@ int MPI_Init(int *argc, char ***argv)
 
     Mitos_set_handler_fn(&sample_handler,NULL);
     Mitos_set_sample_latency_threshold(latency_threshold);
-    std::cout << "Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
+    if (mpi_rank == 0)
+        std::cout << "[Mitos] Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
     if(set_period){
         Mitos_set_sample_event_period(sampling_period);
-        std::cout << "Sampling period: " << sampling_period <<"\n";
+        if (mpi_rank == 0)
+            std::cout << "Sampling period: " << sampling_period <<"\n";
     }
     else {
         Mitos_set_sample_time_frequency(sampling_frequency);
-        std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
+        if (mpi_rank == 0)
+            std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
     }
     
-    std::cout << "Begin sampler, rank: " << mpi_rank << "\n";
+    std::cout << "[Mitos] Begin sampler, rank: " << mpi_rank << "\n";
     Mitos_begin_sampler();
 
     return ret;
@@ -122,7 +125,7 @@ int MPI_Init(int *argc, char ***argv)
 
 int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
 {
-    fprintf(stderr, "MPI_Init_thread hook\n");
+    fprintf(stderr, "[Mitos] MPI_Init_thread hook\n");
     int ret = PMPI_Init_thread(argc, argv, required, provided);
 
     int mpi_rank;
@@ -142,14 +145,18 @@ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
 
     Mitos_set_handler_fn(&sample_handler,NULL);
     Mitos_set_sample_latency_threshold(latency_threshold);
-    std::cout << "Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
+    if (mpi_rank == 0)
+        std::cout << "[Mitos] Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
+
     if(set_period){
         Mitos_set_sample_event_period(sampling_period);
-        std::cout << "Sampling period: " << sampling_period <<"\n";
+        if (mpi_rank == 0)
+            std::cout << "Sampling period: " << sampling_period <<"\n";
     }
     else {
         Mitos_set_sample_time_frequency(sampling_frequency);
-        std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
+        if (mpi_rank == 0)
+            std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
     }
     Mitos_begin_sampler();
 
@@ -158,7 +165,7 @@ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
 
 int MPI_Finalize()
 {
-    std::cout << "MPI Finalize\n";
+    std::cout << "[Mitos] MPI Finalize\n";
     int mpi_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     Mitos_end_sampler();
@@ -251,14 +258,18 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
 
     Mitos_set_handler_fn(&sample_handler_omp,NULL);
     Mitos_set_sample_latency_threshold(latency_threshold);
-    std::cout << "Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
+    if (omp_get_thread_num() == 0){
+        std::cout << "Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
+    }
     if(set_period){
         Mitos_set_sample_event_period(sampling_period);
-        std::cout << "Sampling period: " << sampling_period <<"\n";
+        if (omp_get_thread_num() == 0)
+            std::cout << "Sampling period: " << sampling_period <<"\n";
     }
     else {
         Mitos_set_sample_time_frequency(sampling_frequency);
-        std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
+        if (omp_get_thread_num() == 0)
+            std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
     }
 
     Mitos_begin_sampler();
@@ -290,7 +301,7 @@ int ompt_initialize(ompt_function_lookup_t lookup, int initial_device_num,
     // initialize callback
     ompt_set_callback_t ompt_set_callback =
             (ompt_set_callback_t)lookup("ompt_set_callback");
-    printf("Beginning sampler\n");
+    printf("[Mitos] Beginning sampler\n");
     register_callback(ompt_callback_thread_begin);
     register_callback(ompt_callback_thread_end);
 
@@ -305,7 +316,7 @@ void ompt_finalize(ompt_data_t *tool_data) {
     LOG_LOW("mitoshooks.cpp: ompt_finalize(), application runtime: " 
             << omp_get_wtime() - *(double *) (tool_data->ptr));
 
-    printf("End Sampler...\n");
+    printf("[Mitos] End Sampler...\n");
     Mitos_merge_files("mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
     {
         auto bin_name = [](pid_t pid) -> std::string {    
@@ -343,7 +354,7 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
                                           const char *runtime_version) {
     static double time = 0; // static defintion needs constant assigment
     time = omp_get_wtime();
-    printf("Initiating OMP Hooks start tool: %u \n", getpid());
+    printf("[Mitos] Initiating OMP Hooks start tool: %u \n", getpid());
 
     static ompt_start_tool_result_t ompt_start_tool_result = {
             &ompt_initialize, &ompt_finalize, {.ptr = &time}};

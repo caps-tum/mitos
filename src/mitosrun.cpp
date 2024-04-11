@@ -194,7 +194,7 @@ int main(int argc, char **argv)
         LOG_MEDIUM("mitosrun.cpp:main(), pid: " << child);
 
         Mitos_set_sample_latency_threshold(thresh);
-        std::cout << "Mitos sampling parameters: Latency threshold = " << thresh << ", ";
+        std::cout << "[Mitos] Mitos sampling parameters: Latency threshold = " << thresh << ", ";
         if(set_period)
         {
             Mitos_set_sample_event_period(period);
@@ -215,6 +215,7 @@ int main(int argc, char **argv)
 
         Mitos_set_handler_fn(&sample_handler,NULL);
 
+        std::cout << "[Mitos] Beginning sampler\n";
         Mitos_begin_sampler();
         {
             ptrace(PTRACE_CONT,child,0,0);
@@ -224,10 +225,11 @@ int main(int argc, char **argv)
             while(!WIFEXITED(status));
         }
         Mitos_end_sampler();
+        std::cout << "[Mitos] End sampler\n";
         LOG_LOW("mitosrun.cpp:main(), Dumping leftover samples...");
         dump_samples(); // anything left over
-        std::cout << "Command completed! Processing samples..." <<  "\n";
-        std::cout << "Bin Name" << argv[cmdarg] <<  "\n";
+        std::cout << "[Mitos] Command completed! Processing samples..." <<  "\n";
+        std::cout << "[Mitos] Bin Name: " << argv[cmdarg] <<  "\n";
         std::set<std::string> src_files;
         Mitos_add_offsets(address_file.c_str(), &mout);
         if(Mitos_openFile(argv[cmdarg], &mout))
@@ -240,7 +242,6 @@ int main(int argc, char **argv)
             return 1;
         }
         Mitos_copy_sources(mout.dname_topdir, src_files);   
-        std::cout << "Done!\n";
     }
 
     return 0;
