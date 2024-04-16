@@ -3,11 +3,10 @@ include_directories("..")
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
-add_executable(mitos_api_matmul mitos_api_matmul.cpp)
+add_executable(api_matmul api_matmul.cpp)
 add_executable(matmul matmul.cpp)
 
-target_link_libraries(mitos_api_matmul mitos mitoshooks)
-target_link_libraries(matmul mitos mitoshooks dl)
+target_link_libraries(api_matmul mitos mitoshooks)
 
 if(Dyninst_FOUND)
     include_directories(${DYNINST_INCLUDE_DIR})
@@ -26,6 +25,6 @@ if(OpenMP_CXX_FOUND)
     # OMP_TOOL_LIBRARIES=./../src/libmitoshooks.so
     include_directories(./../src)
     message(STATUS "Linking examples with mitos, mitoshooks and OpenMP")
-    add_executable(omp_example omp_example.cpp)
-    target_link_libraries(omp_example mitos mitoshooks OpenMP::OpenMP_CXX)
+    add_executable(openmp_matmul openmp_matmul.cpp)
+    target_link_libraries(openmp_matmul mitos mitoshooks OpenMP::OpenMP_CXX)
 endif ()
