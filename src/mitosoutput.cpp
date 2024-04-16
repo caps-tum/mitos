@@ -457,6 +457,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
     Dyninst::Offset ip;
     std::string line, ip_str;
     int tmp_line = 0;
+    std::set <long> thread_count, core_count;
     LOG_HIGH("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
     while(std::getline(fraw, line).good())
     {
@@ -466,17 +467,29 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         std::stringstream instruction;
         std::stringstream bytes;
 
+        std::stringstream ss(line);
+        std::vector<std::string> tokens;
+        std::string token;
+        while (std::getline(ss, token, ',')) {
+            tokens.push_back(token);
+        }
+        long tid = std::stol(tokens[9]); // tid is in the 14th column (index 13)
+        long cpu = std::stol(tokens[12]); // cpu is in the 17th column (index 16)
+        
+        // Extract threads and cores
+        thread_count.insert(tid);
+        core_count.insert(cpu);
+
         // Extract offset     
-        size_t offset_endpos = line.find(',');
-        str_offset = line.substr(0,offset_endpos);
-        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
+        offsetAddr = strtoll(tokens[0].c_str(),NULL,0);
+        
         // Extract ip
-        size_t ip_endpos = (line.substr(offset_endpos+1)).find(',');
-        std::string ip_str = line.substr(offset_endpos+1,ip_endpos);
-        ip = (Dyninst::Offset)(strtoull(ip_str.c_str(),NULL,0) - offsetAddr);
+        ip = (Dyninst::Offset)(strtoull(tokens[1].c_str(),NULL,0) - offsetAddr);
+        
         if(tmp_line%4000==0)
             LOG_MEDIUM("mitosoutput.cpp: Mitos_post_process(), Extracted instruction pointer (ip): " << ip);
-
+        if(tmp_line%100000==0 && tmp_line !=0)    
+            std::cout << " Collecting samples ("<< tmp_line<<  " samples collected as of now)...\n";
         // Parse ip for source line info
         std::vector<SymtabAPI::Statement::Ptr> stats;
         sym_success = symtab_obj->getSourceLines(stats, ip);
@@ -531,7 +544,17 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         std::cerr << "Mitos: Failed to delete raw sample file!\n";
         return 1;
     }
-    std::cout << "[Mitos] Collected " << tmp_line << " samples\n";
+    std::cout << "\n Threads are: ";
+    for (auto &threads : thread_count){
+        std::cout << threads << ", ";
+    }
+    std::cout << "\n Cores are: ";
+    for (auto &cores : core_count){
+        std::cout << cores << ", ";
+    }
+    std::cout << "\n";
+    std::cout << "[Mitos] Collected " << tmp_line << " samples from " << core_count.size() <<" different core(s) and ";
+    std::cout << thread_count.size() << " different thread(s)\n";
     return 0;
 }
 
