@@ -7,6 +7,9 @@
 #include "src/virtual_address_writer.h"
 
 thread_local static mitos_output mout;
+thread_local static char* virt_address;
+long tid_omp_first;
+static long ts_output_prefix_omp;
 
 #include <omp.h>
 
@@ -46,52 +49,27 @@ void init_matrices(int N, double **a, double **b, double **c)
 
 void matmul(int N, double *a, double *b, double *c)
 {
-
-    printf("Hello from thread %i of %i!\n", omp_get_thread_num(),
-               omp_get_num_threads());
-    #pragma omp for
-    for(int i=0; i<N; ++i)
-    {
-        for(int j=0; j<N; ++j)
-        {
-            for(int k=0; k<N; ++k)
-            {
-                c[ROW_MAJOR(i,j,N)] += a[ROW_MAJOR(i,k,N)]*b[ROW_MAJOR(k,j,N)];
-            }
-        }
-    }
-
-
-    int randx = N*((float)rand() / (float)RAND_MAX+1);
-    int randy = N*((float)rand() / (float)RAND_MAX+1);
-    std::cout << c[ROW_MAJOR(randx,randy,N)] << std::endl;
-}
-
-int main(int argc, char **argv)
-{
-    save_virtual_address_offset("/tmp/mitos_virt_address.txt");
-    int N = (argc == 2) ? atoi(argv[1]) : 1024;
-
-    double *a,*b,*c;
-    init_matrices(N,&a,&b,&c);
-    long ts_output_prefix_omp = time(NULL);
+    ts_output_prefix_omp = time(NULL);
     #pragma omp parallel
     {
-        //mitos_output mout;
-        pid_t tid = gettid();
-//         uint64_t tid_omp = thread_data->value = my_next_id();
-// #ifdef SYS_gettid
-//         pid_t tid = syscall(SYS_gettid);
-// #else
-// #error "SYS_gettid unavailable on this system"
-//         exit(1);
-// #endif // SYS_gettid
-
+        printf("Hello from thread %i of %i!\n", omp_get_thread_num(),
+               omp_get_num_threads());
         
+        /* Setting up mitos for every thread*/
+        pid_t tid = gettid();
+        if(omp_get_thread_num() == 0){
+            tid_omp_first = tid;
+        }
+
         char rank_prefix[54];
         sprintf(rank_prefix, "mitos_%ld_openmp_distr_mon_%d_", ts_output_prefix_omp, tid);
-
         Mitos_create_output(&mout, rank_prefix);
+        virt_address = new char[(strlen(rank_prefix) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
+        strcpy(virt_address, "/tmp/");
+        strcat(virt_address, rank_prefix);
+        strcat(virt_address, "virt_address.txt");
+        save_virtual_address_offset(std::string(virt_address));
+
         Mitos_pre_process(&mout);
         Mitos_set_pid(tid);
 
@@ -101,21 +79,61 @@ int main(int argc, char **argv)
 
         std::cout << "[Mitos] Beginning sampler: " << omp_get_thread_num() <<"\n";
         Mitos_begin_sampler();
-        matmul(N,a,b,c);
+        
+        /* Main computation*/
+        #pragma omp for
+        for(int i=0; i<N; ++i)
+        {
+            for(int j=0; j<N; ++j)
+            {
+                for(int k=0; k<N; ++k)
+                {
+                    c[ROW_MAJOR(i,j,N)] += a[ROW_MAJOR(i,k,N)]*b[ROW_MAJOR(k,j,N)];
+                }
+            }
+        }
+
+        /*End the thread-specific sampler and flush the raw samples*/
         Mitos_end_sampler();
         fflush(mout.fout_raw);
-        std::cout << "[Mitos] End sampler\n";
-        //Mitos_add_offsets("/tmp/mitos_virt_address.txt", &mout);
+        Mitos_add_offsets(virt_address, &mout);
+        
     }
-    // std::set<std::string> src_files;    
-    // if(Mitos_openFile(argv[0], &mout))
-    // {
-    //     std::cerr << "Error opening binary file!" << std::endl;
-    //     return 1;
-    // }
-    // if(Mitos_post_process(argv[0],&mout, src_files)){
-    //     std::cerr << "Error post processing!" << std::endl;
-    //     return 1;
-    // }
-    // Mitos_copy_sources(mout.dname_topdir, src_files);
+    int randx = N*((float)rand() / (float)RAND_MAX+1);
+    int randy = N*((float)rand() / (float)RAND_MAX+1);
+    std::cout << c[ROW_MAJOR(randx,randy,N)] << std::endl;
+
+    std::cout << "[Mitos] End sampler\n";
+    /* Merge and copy the thread-local raw samples into results directory*/
+    Mitos_merge_files("mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
+}
+
+int main(int argc, char **argv)
+{
+
+    int N = (argc == 2) ? atoi(argv[1]) : 1024;
+
+    double *a,*b,*c;
+    init_matrices(N,&a,&b,&c); 
+    
+    // Sampling done inside this function
+    matmul(N,a,b,c);
+    
+    // Post-processing of raw samples (to be done by the primary thread)
+    std::set<std::string> src_files;
+    std::string dir_prefix = "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult";
+    mitos_output result_mout;
+    Mitos_set_result_mout(&result_mout, dir_prefix.c_str());     
+    if(Mitos_openFile(argv[0], &result_mout))
+    {
+        std::cerr << "Error opening binary file!" << std::endl;
+        return 1;
+    }
+    std::cout <<  "result_mout.fname_raw: " << result_mout.fname_raw << "\n" ;
+    if(Mitos_post_process(argv[0],&result_mout, src_files)){
+        std::cerr << "Error post processing!" << std::endl;
+        return 1;
+    }
+    Mitos_copy_sources(result_mout.dname_topdir, src_files);
+    return 0;
 }

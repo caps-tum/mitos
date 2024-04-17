@@ -502,6 +502,15 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         if(!source.empty()){
             src_files.insert(source);
         }
+        else { 
+            /* TODO: For samples from unknown sources, tid and pid can be garbage values.
+             However, this is an unsafe solution as if the tid and pid are not garbage 
+             and no more samples are collected from the same tid/pid after this sample,
+              the tid/pid will be deleted from the sets. */
+            thread_count.erase(tid);
+            core_count.erase(cpu);
+        }
+        
 
         // Parse ip for instruction info
         void *inst_raw = NULL;

@@ -92,4 +92,5 @@ int main(int argc, char **argv)
         return 1;
     }
     Mitos_copy_sources(mout.dname_topdir, src_files);
+    retrun 0;
 }

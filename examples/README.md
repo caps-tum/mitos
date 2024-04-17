@@ -1,5 +1,7 @@
 # Examples
 
+The examples in this directory show usage for different ways of using mitos. The executables will be installed in the `build/examples/` directory.
+
 1. `matmul.cpp`: For Running with `mitosrun` 
 
     ```bash
@@ -20,7 +22,18 @@
     
 4. `api_matmul.cpp`: For single-threaded API usage
 
+    ```bash
+    $> ./api_matmul
+    ```
+
 5. `api_openmp_matmul.cpp`: For OpenMP based API usage
+
+    ```bash
+    $> ./api_openmp_matmul
+    ```
 
 6. `api_mpi_matmul.cpp`: For MPI based API usage
 
+    ```bash
+    $> ./api_mpi_matmul
+    ```
