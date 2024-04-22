@@ -66,10 +66,6 @@ int main(int argc, char* argv[])
     
     Mitos_set_result_mout(&mouts, dir_prefix.c_str());    
     Mitos_openFile(bin_name.c_str(), &mouts);
-    
-    std::set<std::string> src_files;
+    Mitos_post_process(bin_name.c_str(), &mouts, dir_prefix);
 
-    Mitos_post_process(bin_name.c_str(), &mouts, src_files);
-
-    Mitos_copy_sources(dir_prefix, src_files);
 }

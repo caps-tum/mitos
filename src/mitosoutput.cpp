@@ -308,6 +308,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
 
 int Mitos_add_offsets(const char * virt_address, mitos_output *mout){
 
+    fflush(mout->fout_raw); // flush raw samples stream before post processing starts
     // Read the virtual address
     std::string loc = virt_address;
     std::ifstream foffset(loc);
@@ -434,7 +435,7 @@ std::ofstream fproc(mout->fname_processed);
 #endif // USE_DYNINST
 }
 
-int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files)
+int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir_prefix)
 {
     int err = 0;
     // Open input/output files
@@ -458,6 +459,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
     std::string line, ip_str;
     int tmp_line = 0;
     std::set <long> thread_count, core_count;
+    std::set<std::string> src_files; // For storing the name of source files
     LOG_HIGH("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
     while(std::getline(fraw, line).good())
     {
@@ -502,14 +504,14 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         if(!source.empty()){
             src_files.insert(source);
         }
-        else { 
-            /* TODO: For samples from unknown sources, tid and pid can be garbage values.
-             However, this is an unsafe solution as if the tid and pid are not garbage 
-             and no more samples are collected from the same tid/pid after this sample,
-              the tid/pid will be deleted from the sets. */
-            thread_count.erase(tid);
-            core_count.erase(cpu);
-        }
+        // else { 
+        //     /* TODO: For samples from unknown sources, tid and pid can be garbage values.
+        //      However, this is an unsafe solution as if the tid and pid are not garbage 
+        //      and no more samples are collected from the same tid/pid after this sample,
+        //       the tid/pid will be deleted from the sets. */
+        //     thread_count.erase(tid);
+        //     core_count.erase(cpu);
+        // }
         
 
         // Parse ip for instruction info
@@ -564,6 +566,8 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
     std::cout << "\n";
     std::cout << "[Mitos] Collected " << tmp_line << " samples from " << core_count.size() <<" different core(s) and ";
     std::cout << thread_count.size() << " different thread(s)\n";
+
+    Mitos_copy_sources(dir_prefix, src_files);
     return 0;
 }
 

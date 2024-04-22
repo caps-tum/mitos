@@ -177,12 +177,10 @@ int MPI_Finalize()
     if (mpi_rank == 0) {
         int ret_val = Mitos_merge_files(std::string("mitos_") + std::to_string(ts_output) + "_rank_", std::string("mitos_") + std::to_string(ts_output) + "_rank_0");
         Mitos_openFile("/proc/self/exe", &mout);
-        std::set<std::string> src_files;
         mitos_output result_mout;
         std::string result_dir = "mitos_" + std::to_string(ts_output) + "_rank_result";
         Mitos_set_result_mout(&result_mout, result_dir.c_str());    
-        Mitos_post_process("/proc/self/exe", &result_mout, src_files);
-        Mitos_copy_sources(result_dir, src_files);
+        Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
     }
     MPI_Barrier(MPI_COMM_WORLD);
     delete[] virt_address;
@@ -287,7 +285,6 @@ static void on_ompt_callback_thread_end(ompt_data_t *thread_data) {
     LOG_MEDIUM("mitoshooks.cpp: on_ompt_callback_thread_end(), End Thread OMP:= " << getpid()
          << " tid= "  << tid << " omp_tid= "  << tid_omp );
     Mitos_end_sampler();
-    fflush(mout.fout_raw); // flush raw samples stream before post processing starts
     LOG_LOW("mitoshooks.cpp: on_ompt_callback_thread_end(), Flushed raw samples, thread id = " << omp_get_thread_num());
     Mitos_add_offsets(virt_address, &mout);
     LOG_LOW("mitoshooks.cpp: on_ompt_callback_thread_end(), Thread End: " << omp_get_thread_num());

@@ -230,18 +230,17 @@ int main(int argc, char **argv)
         dump_samples(); // anything left over
         std::cout << "[Mitos] Command completed! Processing samples..." <<  "\n";
         std::cout << "[Mitos] Bin Name: " << argv[cmdarg] <<  "\n";
-        std::set<std::string> src_files;
+        
         Mitos_add_offsets(address_file.c_str(), &mout);
         if(Mitos_openFile(argv[cmdarg], &mout))
         {
             std::cerr << "Error opening binary file!" << std::endl;
             return 1;
         }
-        if(Mitos_post_process(argv[cmdarg],&mout, src_files)){
+        if(Mitos_post_process(argv[cmdarg],&mout, mout.dname_topdir)){
             std::cerr << "Error post processing!" << std::endl;
             return 1;
         }
-        Mitos_copy_sources(mout.dname_topdir, src_files);   
     }
 
     return 0;

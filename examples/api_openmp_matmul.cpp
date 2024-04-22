@@ -95,7 +95,6 @@ void matmul(int N, double *a, double *b, double *c)
 
         /*End the thread-specific sampler and flush the raw samples*/
         Mitos_end_sampler();
-        fflush(mout.fout_raw);
         Mitos_add_offsets(virt_address, &mout);
         
     }
@@ -120,7 +119,6 @@ int main(int argc, char **argv)
     matmul(N,a,b,c);
     
     // Post-processing of raw samples (to be done by the primary thread)
-    std::set<std::string> src_files;
     std::string dir_prefix = "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult";
     mitos_output result_mout;
     Mitos_set_result_mout(&result_mout, dir_prefix.c_str());     
@@ -129,11 +127,11 @@ int main(int argc, char **argv)
         std::cerr << "Error opening binary file!" << std::endl;
         return 1;
     }
-    std::cout <<  "result_mout.fname_raw: " << result_mout.fname_raw << "\n" ;
-    if(Mitos_post_process(argv[0],&result_mout, src_files)){
+    
+    if(Mitos_post_process(argv[0],&result_mout, dir_prefix)){
         std::cerr << "Error post processing!" << std::endl;
         return 1;
     }
-    Mitos_copy_sources(result_mout.dname_topdir, src_files);
+    // Mitos_copy_sources(result_mout.dname_topdir, src_files);
     return 0;
 }
