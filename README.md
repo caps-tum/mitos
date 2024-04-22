@@ -14,7 +14,7 @@ Mitos offers three interfaces for collecting samples:
 3. API calls
    - The application can directly make API calls to collect the samples.
 
-## Requirements
+# Requirements
 
 Mitos requires:
 
@@ -62,8 +62,8 @@ The default installation of `mitos` will be configured for Intel based **Precise
 
 ## Mitoshooks
 
-### Mitoshooks with OpenMP
-#### 1. Requirements
+### 1. Mitoshooks with OpenMP
+#### A. Requirements
 
    Compiler with OMPT support such as Clang (OpenMP feature since version 5.0) is required. If clang is not the default compiler:
    
@@ -71,18 +71,18 @@ The default installation of `mitos` will be configured for Intel based **Precise
    $> export CC=/path/to/clang*
    $> export CXX=/path/to/clang++*
    ```
-#### 2. CMake Configuration
+#### B. CMake Configuration
    
    OpenMP (version 5.0 and later) must be installed. If OpenMP is not installed at the default loaction, make sure to specify the paths so that `cmake` finds it.
    
    Enable `MITOSHOOKS_OPEN_MP` option by `-DMITOSHOOKS_OPEN_MP=ON`
 
-#### 3. Building
+#### C. Building
    * Build and install `mitos` and `mitoshooks`
    * Depending on the build method (cmake/make/command-line), link the application with `mitos` and `mitoshooks` by specifying their paths.
    * See the section on `Source Code Attribution` below for more details on how to save the source code information with the samples collected while running your application.
 
-### Mitoshooks with MPI
+### 2. Mitoshooks with MPI
 
    * Build and install `mitos` and `mitoshooks`
    * Depending on the build method (cmake/make/command-line), link the application with `mitos` and `mitoshooks` by specifying their paths.
@@ -90,13 +90,15 @@ The default installation of `mitos` will be configured for Intel based **Precise
 
 ## API
 
-   * Build and install `mitos` and `mitoshooks`
-   * Depending on the build method (cmake/make/command-line), link the application with `mitos` and `mitoshooks` by specifying their paths.
+   * Build and install `mitos`
+   * Depending on the build method (cmake/make/command-line), link the application with `mitos` by specifying their paths.
    * See the section on `Source Code Attribution` below for more details on how to save the source code information with the samples collected while running your application.
 
-## Running
+# Execution
 
-### Mitosrun
+This section highlights different ways of executing `mitos`. For example usage, see [examples/README.md](examples/README.md). 
+
+## Mitosrun
 
 1. Find the `mitosrun` executable in the `bin` directory in the install
    directory.
@@ -151,7 +153,7 @@ The default installation of `mitos` will be configured for Intel based **Precise
 
 ## Mitoshooks 
 
-### Mitoshooks with OpenMP Usage
+### 1. Mitoshooks with OpenMP Usage
    
    Mitoshooks uses the OMPT interface to collect samples while each thread runs. Configure the environment variable `OMP_TOOL_LIBRARIES` that points to mitoshooks-library and use one of these methods to launch the OpenMP-application.
 
@@ -194,7 +196,7 @@ $> ./mitos_omp_post_process /path/to/mitos/inst-dir/bin/myExecutable mitos_###_o
 
 The results will be saved in mitos_###_openmp_distr_monresult, where ### is the number of seconds since the epoch.
 
-### Mitoshooks with MPI Usage
+### 2. Mitoshooks with MPI Usage
 
 There are no special instructions for MPI usage. If the application is successfully linked to `mitos` and `mitoshooks`, running it on multiple nodes will work. For example,
 
@@ -225,7 +227,7 @@ The results will be saved in mitos_###_rank_result, where ### is the number of s
 
 ## API
 
-See [examples/mitos_api_matmul.cpp](examples/mitos_api_matmul.cpp) for the sample usage.
+See [examples/api_matmul.cpp](examples/api_matmul.cpp), [examples/api_openmp_matmul.cpp](examples/api_openmp_matmul.cpp), and [examples/api_mpi_matmul.cpp](examples/api_mpi_matmul.cpp) for the sample usage.
 
 # Source Code Attribution
 
