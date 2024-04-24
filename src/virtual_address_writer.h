@@ -15,7 +15,7 @@
 * This helps in locating the source code of the executable
     using the instruction pointers obtained through the samples.
 * This function must be included in the source code of the executable */
-void save_virtual_address_offset(std::string filename, bool verbose = false) {
+void Mitos_save_virtual_address_offset(std::string filename, bool verbose = false) {
     // ---------  get virtual address offset -------------------
     void * const handle = dlopen(NULL, RTLD_LAZY);
     assert(handle != 0);

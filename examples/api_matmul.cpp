@@ -62,7 +62,7 @@ void matmul(int N, double *a, double *b, double *c)
 
 int main(int argc, char **argv)
 {
-    save_virtual_address_offset("/tmp/mitos_virt_address.txt");
+    Mitos_save_virtual_address_offset("/tmp/mitos_virt_address.txt");
     int N = (argc == 2) ? atoi(argv[1]) : 1024;
 
     double *a,*b,*c;

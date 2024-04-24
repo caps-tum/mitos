@@ -88,7 +88,7 @@ int MPI_Init(int *argc, char ***argv)
     strcpy(virt_address, "/tmp/");
     strcat(virt_address, rank_prefix);
     strcat(virt_address, "virt_address.txt");
-    save_virtual_address_offset(std::string(virt_address));
+    Mitos_save_virtual_address_offset(std::string(virt_address));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_LATENCY;
@@ -244,7 +244,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     strcpy(virt_address, "/tmp/");
     strcat(virt_address, rank_prefix);
     strcat(virt_address, "virt_address.txt");
-    save_virtual_address_offset(std::string(virt_address));
+    Mitos_save_virtual_address_offset(std::string(virt_address));
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_LATENCY;

@@ -71,7 +71,7 @@ int main (int argc, char *argv[])
     strcpy(virt_address, "/tmp/");
     strcat(virt_address, rank_prefix);
     strcat(virt_address, "virt_address.txt");
-    save_virtual_address_offset(std::string(virt_address));
+    Mitos_save_virtual_address_offset(std::string(virt_address));
     
     Mitos_create_output(&mout, rank_prefix);
     pid_t curpid = getpid();

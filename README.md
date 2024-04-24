@@ -237,7 +237,7 @@ See [examples/api_matmul.cpp](examples/api_matmul.cpp), [examples/api_openmp_mat
 
 ## Saving the virtual address
 
-The source code of the executable must save the virtual addess offset when the executable starts runnnig. This can be done by including the [virtual_address_writer.h](src/virtual_address_writer.h) and calling the function [save_virtual_address_offset("/tmp/mitos_virt_address.txt")](src/virtual_address_writer.h#L18).
+The source code of the executable must save the virtual addess offset when the executable starts runnnig. This can be done by including the [virtual_address_writer.h](src/virtual_address_writer.h) and calling the function [Mitos_save_virtual_address_offset("/tmp/mitos_virt_address.txt")](src/virtual_address_writer.h#L18).
 
 See [matmul.cpp](examples/matmul.cpp) for reference.
 
@@ -245,7 +245,7 @@ This saves the virtual address offset to `/tmp/mitos_virt_address.txt`. Dyninst 
 
 When running the application with `mitosrun`, another location can also be specified. When doing this, use `-l` option with the `mitosrun` to specify the location of the file.
 
-For instance, if the application saves virtual address by calling `save_virtual_address_offset("/myPath/mitos_virt_address.txt")`, `mitosrun` can be run as:
+For instance, if the application saves virtual address by calling `Mitos_save_virtual_address_offset("/myPath/mitos_virt_address.txt")`, `mitosrun` can be run as:
 
 ```shell
 ./mitosrun -l /myPath/mitos_virt_address.txt ./myApplication

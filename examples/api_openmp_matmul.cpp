@@ -68,7 +68,7 @@ void matmul(int N, double *a, double *b, double *c)
         strcpy(virt_address, "/tmp/");
         strcat(virt_address, rank_prefix);
         strcat(virt_address, "virt_address.txt");
-        save_virtual_address_offset(std::string(virt_address));
+        Mitos_save_virtual_address_offset(std::string(virt_address));
 
         Mitos_pre_process(&mout);
         Mitos_set_pid(tid);
