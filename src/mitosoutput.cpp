@@ -478,9 +478,14 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir
         long tid = std::stol(tokens[9]); // tid is in the 14th column (index 13)
         long cpu = std::stol(tokens[12]); // cpu is in the 17th column (index 16)
         
+        // TODO: maybe use this information to avoid saving bad samples
         // Extract threads and cores
-        thread_count.insert(tid);
-        core_count.insert(cpu);
+        if(tokens[17] != "Invalid Data Source" || tokens[18] != "Invalid Data Source")
+        {
+            thread_count.insert(tid);
+            core_count.insert(cpu);
+        }
+        
 
         // Extract offset     
         offsetAddr = strtoll(tokens[0].c_str(),NULL,0);
@@ -504,14 +509,6 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir
         if(!source.empty()){
             src_files.insert(source);
         }
-        // else { 
-        //     /* TODO: For samples from unknown sources, tid and pid can be garbage values.
-        //      However, this is an unsafe solution as if the tid and pid are not garbage 
-        //      and no more samples are collected from the same tid/pid after this sample,
-        //       the tid/pid will be deleted from the sets. */
-        //     thread_count.erase(tid);
-        //     core_count.erase(cpu);
-        // }
         
 
         // Parse ip for instruction info
@@ -555,15 +552,21 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir
         std::cerr << "Mitos: Failed to delete raw sample file!\n";
         return 1;
     }
-    std::cout << "\n Threads are: ";
+    #if VERBOSITY >= VERBOSE_LOW
+    LOG_MEDIUM("mitosoutput.cpp:Mitos_post_process(), Threads are: ");
+    std::cout << "      ";
     for (auto &threads : thread_count){
         std::cout << threads << ", ";
-    }
-    std::cout << "\n Cores are: ";
+    } 
+    std::cout << "\n";
+    LOG_MEDIUM("mitosoutput.cpp:Mitos_post_process(), Cores are: ");
+    std::cout << "      ";
     for (auto &cores : core_count){
         std::cout << cores << ", ";
     }
     std::cout << "\n";
+    #endif
+    
     std::cout << "[Mitos] Collected " << tmp_line << " samples from " << core_count.size() <<" different core(s) and ";
     std::cout << thread_count.size() << " different thread(s)\n";
 
