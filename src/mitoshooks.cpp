@@ -169,7 +169,6 @@ int MPI_Finalize()
     int mpi_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     Mitos_end_sampler();
-    fflush(mout.fout_raw); // flush raw samples stream before post processing starts
     MPI_Barrier(MPI_COMM_WORLD);
     LOG_LOW("mitoshooks.cpp: MPI_Finalize(), Flushed raw samples, rank no.: " << mpi_rank);
     Mitos_add_offsets(virt_address, &mout);

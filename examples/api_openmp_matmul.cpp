@@ -61,6 +61,7 @@ void matmul(int N, double *a, double *b, double *c)
             tid_omp_first = tid;
         }
 
+        /* Process specific directory name*/
         char rank_prefix[54];
         sprintf(rank_prefix, "mitos_%ld_openmp_distr_mon_%d_", ts_output_prefix_omp, tid);
         Mitos_create_output(&mout, rank_prefix);

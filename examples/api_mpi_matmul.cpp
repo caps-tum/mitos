@@ -60,10 +60,15 @@ int main (int argc, char *argv[])
         MPI_Abort(MPI_COMM_WORLD, rc);
         exit(1);
     }
-    long ts_output = time(NULL);
-    MPI_Bcast(&ts_output, 1, MPI_LONG, 0, MPI_COMM_WORLD);
-    // send timestamp from rank 0 to all others to synchronize folder prefix
+    numworkers = numtasks-1;
 
+   /* Setting up mitos for every process*/ 
+   long ts_output = time(NULL);
+   // send timestamp from rank 0 to all others to synchronize folder prefix 
+    MPI_Bcast(&ts_output, 1, MPI_LONG, 0, MPI_COMM_WORLD);
+    
+
+   /* Process specific directory name*/
     char rank_prefix[54];
     sprintf(rank_prefix, "mitos_%ld_rank_%d_", ts_output, taskid);
 
@@ -83,10 +88,10 @@ int main (int argc, char *argv[])
     Mitos_set_sample_event_period(4000);
     Mitos_set_sample_latency_threshold(4);
 
-   MPI_Barrier(MPI_COMM_WORLD);
    std::cout << "[Mitos] Begin sampler, rank: " << taskid << "\n";
    Mitos_begin_sampler();  
-/**************************** master task ************************************/
+
+   /**************************** master task ************************************/
    if (taskid == MASTER)
    {
       printf("mpi_mm has started with %d tasks.\n",numtasks);
@@ -103,7 +108,6 @@ int main (int argc, char *argv[])
       extra = NRA%numworkers;
       offset = 0;
       mtype = FROM_MASTER;
-      printf("Sending data...\n");
       for (dest=1; dest<=numworkers; dest++)
       {
          rows = (dest <= extra) ? averow+1 : averow;
@@ -147,7 +151,6 @@ int main (int argc, char *argv[])
 /**************************** worker task ************************************/
    if (taskid > MASTER)
    {
-      std::cout << "Inside worker task...\n";
       mtype = FROM_MASTER;
       MPI_Recv(&offset, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD, &status);
       MPI_Recv(&rows, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD, &status);
@@ -162,19 +165,18 @@ int main (int argc, char *argv[])
                c[i][k] = c[i][k] + a[i][j] * b[j][k];
          }
       mtype = FROM_WORKER;
-      printf("[Worker] Sending data...\n");
       MPI_Send(&offset, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD);
       MPI_Send(&rows, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD);
       MPI_Send(&c, rows*NCB, MPI_DOUBLE, MASTER, mtype, MPI_COMM_WORLD);
    }
-   MPI_Barrier(MPI_COMM_WORLD);
+
    Mitos_end_sampler();
-   fflush(mout.fout_raw); // flush raw samples stream before post processing starts
    MPI_Barrier(MPI_COMM_WORLD);
    LOG_LOW("mitoshooks.cpp: MPI_Finalize(), Flushed raw samples, rank no.: " << taskid);
    Mitos_add_offsets(virt_address, &mout);
-   // merge files
-   if (taskid == 0) {
+   
+   /* Post-processing of samplers*/
+   if (taskid == MASTER) {
        int ret_val = Mitos_merge_files(std::string("mitos_") + std::to_string(ts_output) + "_rank_", std::string("mitos_") + std::to_string(ts_output) + "_rank_0");
        Mitos_openFile("/proc/self/exe", &mout);
        mitos_output result_mout;
