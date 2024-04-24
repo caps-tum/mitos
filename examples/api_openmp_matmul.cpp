@@ -123,7 +123,7 @@ int main(int argc, char **argv)
     std::string dir_prefix = "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult";
     mitos_output result_mout;
     Mitos_set_result_mout(&result_mout, dir_prefix.c_str());     
-    if(Mitos_openFile(argv[0], &result_mout))
+    if(Mitos_process_binary(argv[0], &result_mout))
     {
         std::cerr << "Error opening binary file!" << std::endl;
         return 1;

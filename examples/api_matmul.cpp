@@ -82,7 +82,7 @@ int main(int argc, char **argv)
     std::cout << "[Mitos] End sampler\n";
     
     Mitos_add_offsets("/tmp/mitos_virt_address.txt", &mout);
-    if(Mitos_openFile(argv[0], &mout))
+    if(Mitos_process_binary(argv[0], &mout))
     {
         std::cerr << "Error opening binary file!" << std::endl;
         return 1;

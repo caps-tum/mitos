@@ -395,7 +395,7 @@ void Mitos_write_samples_header(std::ofstream& fproc) {
     fproc << "\n";
 }
 
-int Mitos_openFile(const char *bin_name, mitos_output *mout)
+int Mitos_process_binary(const char *bin_name, mitos_output *mout)
 {
 // Open input/output files
 std::ifstream fraw(mout->fname_raw);
@@ -413,9 +413,9 @@ std::ofstream fproc(mout->fname_processed);
 
     return 0;
 #else // USE DYNINST
-    LOG_MEDIUM("mitosoutput.cpp, Mitos_openFile(), bin_name: " << bin_name);
+    LOG_MEDIUM("mitosoutput.cpp, Mitos_process_binary(), bin_name: " << bin_name);
     sym_success = SymtabAPI::Symtab::openFile(symtab_obj,bin_name);
-    LOG_MEDIUM("mitosoutput.cpp, Mitos_openFile(), sym_success: " << sym_success);
+    LOG_MEDIUM("mitosoutput.cpp, Mitos_process_binary(), sym_success: " << sym_success);
     if(!sym_success)
     {
         std::cerr << "Mitos: Failed to open Symtab object for " << bin_name << std::endl;

@@ -232,7 +232,7 @@ int main(int argc, char **argv)
         std::cout << "[Mitos] Bin Name: " << argv[cmdarg] <<  "\n";
         
         Mitos_add_offsets(address_file.c_str(), &mout);
-        if(Mitos_openFile(argv[cmdarg], &mout))
+        if(Mitos_process_binary(argv[cmdarg], &mout))
         {
             std::cerr << "Error opening binary file!" << std::endl;
             return 1;
