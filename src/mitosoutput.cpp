@@ -496,7 +496,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir
         if(tmp_line%4000==0)
             LOG_MEDIUM("mitosoutput.cpp: Mitos_post_process(), Extracted instruction pointer (ip): " << ip);
         if(tmp_line%100000==0 && tmp_line !=0)    
-            std::cout << " Collecting samples ("<< tmp_line<<  " samples collected as of now)...\n";
+            std::cout << " Collecting samples ("<< tmp_line<<  " samples processed as of now)...\n";
         // Parse ip for source line info
         std::vector<SymtabAPI::Statement::Ptr> stats;
         sym_success = symtab_obj->getSourceLines(stats, ip);
