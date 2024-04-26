@@ -103,6 +103,18 @@ int Mitos_create_output(mitos_output *mout, const char *prefix_name)
     return 0;
 }
 
+char* Mitos_create_api_output(mitos_output *mout, const char *prefix_name)
+{
+
+    Mitos_create_output(mout, prefix_name);
+    char* virt_address = new char[(strlen(prefix_name) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
+    strcpy(virt_address, "/tmp/");
+    strcat(virt_address, prefix_name);
+    strcat(virt_address, "virt_address.txt");
+    
+    return virt_address;
+}
+
 int Mitos_pre_process(mitos_output *mout)
 {
     // Create hardware topology file for current hardware

@@ -62,13 +62,15 @@ void matmul(int N, double *a, double *b, double *c)
 
 int main(int argc, char **argv)
 {
-    Mitos_save_virtual_address_offset("/tmp/mitos_virt_address.txt");
     int N = (argc == 2) ? atoi(argv[1]) : 1024;
 
     double *a,*b,*c;
     init_matrices(N,&a,&b,&c);
 
-    Mitos_create_output(&mout, "mitos");
+
+    // Create output directories and get the location of the virtual address file to be created
+    auto virt_address = Mitos_create_api_output(&mout, "mitos");
+    Mitos_save_virtual_address_offset(std::string(virt_address));
     Mitos_pre_process(&mout);
 
     Mitos_set_handler_fn(&sample_handler,NULL);
@@ -81,7 +83,7 @@ int main(int argc, char **argv)
     Mitos_end_sampler();
     std::cout << "[Mitos] End sampler\n";
     
-    Mitos_add_offsets("/tmp/mitos_virt_address.txt", &mout);
+    Mitos_add_offsets(virt_address, &mout);
     if(Mitos_process_binary(argv[0], &mout))
     {
         std::cerr << "Error opening binary file!" << std::endl;

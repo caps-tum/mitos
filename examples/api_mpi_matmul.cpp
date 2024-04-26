@@ -38,55 +38,46 @@ void sample_handler(perf_event_sample *sample, void *args)
 
 int main (int argc, char *argv[])
 {
-    int	numtasks,              /* number of tasks in partition */
-    	taskid,                /* a task identifier */
-        numworkers,            /* number of worker tasks */
-        source,                /* task id of message source */
-	    dest,                  /* task id of message destination */
-	    mtype,                 /* message type */
-	    rows,                  /* rows of matrix A sent to each worker */
-	    averow, extra, offset, /* used to determine rows sent to each worker */
-	    i, j, k, rc;           /* misc */
-   
-   
-    
-    numworkers = numtasks-1;
-    MPI_Init(&argc,&argv);
-    MPI_Status status;
-    MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
-    MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
-    if (numtasks < 2 ) {
-        fprintf(stderr,"Need at least two MPI tasks. Quitting...\n");
-        MPI_Abort(MPI_COMM_WORLD, rc);
-        exit(1);
-    }
-    numworkers = numtasks-1;
-
+   int	numtasks,              /* number of tasks in partition */
+   	taskid,                /* a task identifier */
+       numworkers,            /* number of worker tasks */
+       source,                /* task id of message source */
+	   dest,                  /* task id of message destination */
+	   mtype,                 /* message type */
+	   rows,                  /* rows of matrix A sent to each worker */
+	   averow, extra, offset, /* used to determine rows sent to each worker */
+	   i, j, k, rc;           /* misc */
+         
+   numworkers = numtasks-1;
+   MPI_Init(&argc,&argv);
+   MPI_Status status;
+   MPI_Comm_rank(MPI_COMM_WORLD,&taskid);
+   MPI_Comm_size(MPI_COMM_WORLD,&numtasks);
+   if (numtasks < 2 ) {
+       fprintf(stderr,"Need at least two MPI tasks. Quitting...\n");
+       MPI_Abort(MPI_COMM_WORLD, rc);
+       exit(1);
+   }
+   numworkers = numtasks-1;
    /* Setting up mitos for every process*/ 
    long ts_output = time(NULL);
    // send timestamp from rank 0 to all others to synchronize folder prefix 
-    MPI_Bcast(&ts_output, 1, MPI_LONG, 0, MPI_COMM_WORLD);
-    
-
-   /* Process specific directory name*/
-    char rank_prefix[54];
-    sprintf(rank_prefix, "mitos_%ld_rank_%d_", ts_output, taskid);
-
-    char* virt_address = new char[(strlen(rank_prefix) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
-    strcpy(virt_address, "/tmp/");
-    strcat(virt_address, rank_prefix);
-    strcat(virt_address, "virt_address.txt");
-    Mitos_save_virtual_address_offset(std::string(virt_address));
-    
-    Mitos_create_output(&mout, rank_prefix);
-    pid_t curpid = getpid();
-    
-    Mitos_pre_process(&mout);
-    Mitos_set_pid(curpid);
-
-    Mitos_set_handler_fn(&sample_handler,NULL);
-    Mitos_set_sample_event_period(4000);
-    Mitos_set_sample_latency_threshold(4);
+   MPI_Bcast(&ts_output, 1, MPI_LONG, 0, MPI_COMM_WORLD);
+   
+   /* Process specific directory name */
+   char rank_prefix[54];
+   sprintf(rank_prefix, "mitos_%ld_rank_%d_", ts_output, taskid);
+   
+   // Create output directories and get the location of the virtual address file to be created
+   auto virt_address = Mitos_create_api_output(&mout, rank_prefix);
+   Mitos_save_virtual_address_offset(std::string(virt_address));
+   
+   pid_t curpid = getpid();
+   Mitos_pre_process(&mout);
+   Mitos_set_pid(curpid);
+   Mitos_set_handler_fn(&sample_handler,NULL);
+   Mitos_set_sample_event_period(4000);
+   Mitos_set_sample_latency_threshold(4);
 
    std::cout << "[Mitos] Begin sampler, rank: " << taskid << "\n";
    Mitos_begin_sampler();  
@@ -171,18 +162,29 @@ int main (int argc, char *argv[])
    }
 
    Mitos_end_sampler();
+
    MPI_Barrier(MPI_COMM_WORLD);
    LOG_LOW("mitoshooks.cpp: MPI_Finalize(), Flushed raw samples, rank no.: " << taskid);
    Mitos_add_offsets(virt_address, &mout);
    
    /* Post-processing of samplers*/
    if (taskid == MASTER) {
-       int ret_val = Mitos_merge_files(std::string("mitos_") + std::to_string(ts_output) + "_rank_", std::string("mitos_") + std::to_string(ts_output) + "_rank_0");
-       Mitos_process_binary("/proc/self/exe", &mout);
-       mitos_output result_mout;
-       std::string result_dir = "mitos_" + std::to_string(ts_output) + "_rank_result";
-       Mitos_set_result_mout(&result_mout, result_dir.c_str());    
-       Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
+      // Set name of the directories (where samples are stored)
+      std::string dir_prefix = "mitos_" + std::to_string(ts_output) + "_rank_";
+      std::string prefix_first_rank = dir_prefix + "0";
+      std::string result_dir = dir_prefix + "result";
+      
+      // Merges all the raw samples into a single raw_samples.csv file
+      Mitos_merge_files(dir_prefix, prefix_first_rank);
+      
+      // Store result information
+      mitos_output result_mout;
+      Mitos_set_result_mout(&result_mout, result_dir.c_str());    
+
+      // Read the binary for symbols
+      Mitos_process_binary("/proc/self/exe", &result_mout);
+      // Finalize post-processing
+      Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
    }
    MPI_Barrier(MPI_COMM_WORLD);
    delete[] virt_address;

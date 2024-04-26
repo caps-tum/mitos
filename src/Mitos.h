@@ -65,6 +65,7 @@ long Mitos_z_index(struct perf_event_sample *s);
 
 // Output
 int Mitos_create_output(struct mitos_output *mout, const char *prefix_name);
+char *Mitos_create_api_output(mitos_output *mout, const char *prefix_name);
 int Mitos_pre_process(struct mitos_output *mout);
 int Mitos_set_result_mout(mitos_output *mout, const char *prefix_name);
 int Mitos_write_sample(struct perf_event_sample *s, struct mitos_output *mout);

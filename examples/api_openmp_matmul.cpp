@@ -61,14 +61,14 @@ void matmul(int N, double *a, double *b, double *c)
             tid_omp_first = tid;
         }
 
-        /* Process specific directory name*/
+        /* Rank specific directory name*/
+        
+        // Unique directory name for every rank
         char rank_prefix[54];
-        sprintf(rank_prefix, "mitos_%ld_openmp_distr_mon_%d_", ts_output_prefix_omp, tid);
-        Mitos_create_output(&mout, rank_prefix);
-        virt_address = new char[(strlen(rank_prefix) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
-        strcpy(virt_address, "/tmp/");
-        strcat(virt_address, rank_prefix);
-        strcat(virt_address, "virt_address.txt");
+        sprintf(rank_prefix, "mitos_%ld_openmp_%d_", ts_output_prefix_omp, tid);
+
+        // Create output directories and get the location of the virtual address file to be created
+        auto virt_address = Mitos_create_api_output(&mout, rank_prefix);
         Mitos_save_virtual_address_offset(std::string(virt_address));
 
         Mitos_pre_process(&mout);
@@ -96,16 +96,13 @@ void matmul(int N, double *a, double *b, double *c)
 
         /*End the thread-specific sampler and flush the raw samples*/
         Mitos_end_sampler();
-        Mitos_add_offsets(virt_address, &mout);
-        
+        Mitos_add_offsets(virt_address, &mout); 
     }
     int randx = N*((float)rand() / (float)RAND_MAX+1);
     int randy = N*((float)rand() / (float)RAND_MAX+1);
     std::cout << c[ROW_MAJOR(randx,randy,N)] << std::endl;
 
     std::cout << "[Mitos] End sampler\n";
-    /* Merge and copy the thread-local raw samples into results directory*/
-    Mitos_merge_files("mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
 }
 
 int main(int argc, char **argv)
@@ -120,19 +117,32 @@ int main(int argc, char **argv)
     matmul(N,a,b,c);
     
     // Post-processing of raw samples (to be done by the primary thread)
-    std::string dir_prefix = "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult";
+    
+    /* Merge and copy the thread-local raw samples into results directory*/
+    
+    // Set name of the directories (where samples are stored)
+    std::string dir_prefix = "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_";
+    std::string prefix_first_thread = dir_prefix + std::to_string(tid_omp_first);
+    std::string result_dir = dir_prefix + "result";
+    
+    // Merges all the raw samples into a single raw_samples.csv file
+    Mitos_merge_files(dir_prefix, prefix_first_thread);
+    
+    // Store result information
     mitos_output result_mout;
-    Mitos_set_result_mout(&result_mout, dir_prefix.c_str());     
+    Mitos_set_result_mout(&result_mout, result_dir.c_str());     
+    
+    // Read the binary for symbols
     if(Mitos_process_binary(argv[0], &result_mout))
     {
         std::cerr << "Error opening binary file!" << std::endl;
         return 1;
     }
     
-    if(Mitos_post_process(argv[0],&result_mout, dir_prefix)){
+    // Finalize post-processing
+    if(Mitos_post_process(argv[0], &result_mout, result_dir)){
         std::cerr << "Error post processing!" << std::endl;
         return 1;
     }
-    // Mitos_copy_sources(result_mout.dname_topdir, src_files);
     return 0;
 }

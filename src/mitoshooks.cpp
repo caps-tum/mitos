@@ -175,10 +175,11 @@ int MPI_Finalize()
     // merge files
     if (mpi_rank == 0) {
         int ret_val = Mitos_merge_files(std::string("mitos_") + std::to_string(ts_output) + "_rank_", std::string("mitos_") + std::to_string(ts_output) + "_rank_0");
-        Mitos_process_binary("/proc/self/exe", &mout);
+        
         mitos_output result_mout;
         std::string result_dir = "mitos_" + std::to_string(ts_output) + "_rank_result";
         Mitos_set_result_mout(&result_mout, result_dir.c_str());    
+        Mitos_process_binary("/proc/self/exe", &result_mout);
         Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
     }
     MPI_Barrier(MPI_COMM_WORLD);
