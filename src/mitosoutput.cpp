@@ -461,6 +461,14 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir
     std::set <long> thread_count, core_count;
     std::set<std::string> src_files; // For storing the name of source files
     LOG_HIGH("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
+    long num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    bool use_num_cores = true;
+    if (num_cores < 0) {
+        std::cerr << "Error determining the number of CPU cores." << std::endl;
+        use_num_cores = false;
+    }
+    long skipped_samples = 0;
+    
     while(std::getline(fraw, line).good())
     {
         // Unknown values
@@ -475,17 +483,17 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir
         while (std::getline(ss, token, ',')) {
             tokens.push_back(token);
         }
-        long tid = std::stol(tokens[9]); // tid is in the 14th column (index 13)
-        long cpu = std::stol(tokens[12]); // cpu is in the 17th column (index 16)
+        long tid = std::stol(tokens[9]); 
+        long cpu = std::stol(tokens[12]);
         
-        // TODO: maybe use this information to avoid saving bad samples
-        // Extract threads and cores
-        if(tokens[17] != "Invalid Data Source" || tokens[18] != "Invalid Data Source")
+        // Skip damaged samples
+        if((use_num_cores && (cpu > num_cores)) || cpu > 10000)
         {
-            thread_count.insert(tid);
-            core_count.insert(cpu);
+            skipped_samples++;
+            continue;
         }
-        
+        thread_count.insert(tid);
+        core_count.insert(cpu);
 
         // Extract offset     
         offsetAddr = strtoll(tokens[0].c_str(),NULL,0);
@@ -567,8 +575,9 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir
     std::cout << "\n";
     #endif
     
-    std::cout << "[Mitos] Collected " << tmp_line << " samples from " << core_count.size() <<" different core(s) and ";
-    std::cout << thread_count.size() << " different thread(s)\n";
+    std::cout << "[Mitos] Collected " << tmp_line << " samples from " << core_count.size() <<" core(s) and ";
+    std::cout << thread_count.size() << " thread(s). Skipped " << skipped_samples << " garbage sample(s).\n";
+
 
     Mitos_copy_sources(dir_prefix, src_files);
     return 0;
