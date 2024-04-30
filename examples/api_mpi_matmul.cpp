@@ -65,11 +65,15 @@ int main (int argc, char *argv[])
    MPI_Bcast(&ts_output, 1, MPI_LONG, 0, MPI_COMM_WORLD);
    
    /* Process specific directory name */
-   char rank_prefix[54];
-   sprintf(rank_prefix, "mitos_%ld_rank_%d_", ts_output, taskid);
-   
+   // char rank_prefix[54];
+   // sprintf(rank_prefix, "mitos_%ld_rank_%d_", ts_output, taskid);
+   Mitos_create_output(&mout, ts_output, taskid);
    // Create output directories and get the location of the virtual address file to be created
-   auto virt_address = Mitos_create_api_output(&mout, rank_prefix);
+   // auto virt_address = Mitos_create_api_output(&mout, rank_prefix);
+   std::string virt_address = "/tmp/" + std::to_string(ts_output) + "_virt_address.txt";
+   Mitos_save_virtual_address_offset(virt_address);
+   // Create output directories and get the location of the virtual address file to be created
+
    Mitos_save_virtual_address_offset(std::string(virt_address));
    
    pid_t curpid = getpid();
@@ -165,12 +169,12 @@ int main (int argc, char *argv[])
 
    MPI_Barrier(MPI_COMM_WORLD);
    LOG_LOW("mitoshooks.cpp: MPI_Finalize(), Flushed raw samples, rank no.: " << taskid);
-   Mitos_add_offsets(virt_address, &mout);
+   Mitos_add_offsets(virt_address.c_str(), &mout);
    
    /* Post-processing of samplers*/
    if (taskid == MASTER) {
       // Set name of the directories (where samples are stored)
-      std::string dir_prefix = "mitos_" + std::to_string(ts_output) + "_rank_";
+      std::string dir_prefix = "mitos_" + std::to_string(ts_output) + "_out_";
       std::string prefix_first_rank = dir_prefix + "0";
       std::string result_dir = dir_prefix + "result";
       
@@ -187,6 +191,6 @@ int main (int argc, char *argv[])
       Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
    }
    MPI_Barrier(MPI_COMM_WORLD);
-   delete[] virt_address;
+   //delete[] virt_address;
    MPI_Finalize();
 }

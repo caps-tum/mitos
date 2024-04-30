@@ -64,12 +64,15 @@ void matmul(int N, double *a, double *b, double *c)
         /* Rank specific directory name*/
         
         // Unique directory name for every rank
-        char rank_prefix[54];
-        sprintf(rank_prefix, "mitos_%ld_openmp_%d_", ts_output_prefix_omp, tid);
+        //char[] mitos_prexix_path = “/tmp/“ + mitos_unique_id + “/virt.txt”;
+        // char rank_prefix[54];
+        // sprintf(rank_prefix, "mitos_%ld_openmp_%d_", ts_output_prefix_omp, tid);
 
+        Mitos_create_output(&mout, ts_output_prefix_omp, tid);
         // Create output directories and get the location of the virtual address file to be created
-        auto virt_address = Mitos_create_api_output(&mout, rank_prefix);
-        Mitos_save_virtual_address_offset(std::string(virt_address));
+        // auto virt_address = Mitos_create_api_output(&mout, rank_prefix);
+        std::string virt_address = "/tmp/" + std::to_string(ts_output_prefix_omp) + "_virt_address.txt";
+        Mitos_save_virtual_address_offset(virt_address);
 
         Mitos_pre_process(&mout);
         Mitos_set_pid(tid);
@@ -96,7 +99,7 @@ void matmul(int N, double *a, double *b, double *c)
 
         /*End the thread-specific sampler and flush the raw samples*/
         Mitos_end_sampler();
-        Mitos_add_offsets(virt_address, &mout); 
+        Mitos_add_offsets(virt_address.c_str(), &mout); 
     }
     int randx = N*((float)rand() / (float)RAND_MAX+1);
     int randy = N*((float)rand() / (float)RAND_MAX+1);
@@ -121,7 +124,7 @@ int main(int argc, char **argv)
     /* Merge and copy the thread-local raw samples into results directory*/
     
     // Set name of the directories (where samples are stored)
-    std::string dir_prefix = "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_";
+    std::string dir_prefix = "mitos_" + std::to_string(ts_output_prefix_omp) + "_out_";
     std::string prefix_first_thread = dir_prefix + std::to_string(tid_omp_first);
     std::string result_dir = dir_prefix + "result";
     

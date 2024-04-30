@@ -82,7 +82,7 @@ int MPI_Init(int *argc, char ***argv)
     // send timestamp from rank 0 to all others to synchronize folder prefix
 
     char rank_prefix[54];
-    sprintf(rank_prefix, "mitos_%ld_rank_%d_", ts_output, mpi_rank);
+    sprintf(rank_prefix, "mitos_%ld_out_%d_", ts_output, mpi_rank);
 
     virt_address = new char[(strlen(rank_prefix) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
     strcpy(virt_address, "/tmp/");
@@ -95,7 +95,7 @@ int MPI_Init(int *argc, char ***argv)
     int sampling_frequency = DEFAULT_FREQ;
     Mitos_get_environment_variables(sampling_period, latency_threshold, sampling_frequency);
 
-    Mitos_create_output(&mout, rank_prefix);
+    Mitos_create_output(&mout, ts_output, mpi_rank);
     pid_t curpid = getpid();
     LOG_LOW("mitoshooks.cpp: MPI_Init(), Curpid: " << curpid << ", Rank: " << mpi_rank);
 
@@ -130,9 +130,6 @@ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
 
     int mpi_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-
-    char rank_prefix[38];
-    sprintf(rank_prefix, "mitos_rank_%d", mpi_rank);
     
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
@@ -140,7 +137,7 @@ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
     int sampling_frequency = DEFAULT_FREQ;
     Mitos_get_environment_variables(sampling_period, latency_threshold, sampling_frequency);
 
-    Mitos_create_output(&mout, rank_prefix);
+    Mitos_create_output(&mout, mpi_rank);
     Mitos_pre_process(&mout);
 
     Mitos_set_handler_fn(&sample_handler,NULL);
@@ -174,10 +171,10 @@ int MPI_Finalize()
     Mitos_add_offsets(virt_address, &mout);
     // merge files
     if (mpi_rank == 0) {
-        int ret_val = Mitos_merge_files(std::string("mitos_") + std::to_string(ts_output) + "_rank_", std::string("mitos_") + std::to_string(ts_output) + "_rank_0");
+        int ret_val = Mitos_merge_files(std::string("mitos_") + std::to_string(ts_output) + "_out_", std::string("mitos_") + std::to_string(ts_output) + "_out_0");
         
         mitos_output result_mout;
-        std::string result_dir = "mitos_" + std::to_string(ts_output) + "_rank_result";
+        std::string result_dir = "mitos_" + std::to_string(ts_output) + "_out_result";
         Mitos_set_result_mout(&result_mout, result_dir.c_str());    
         Mitos_process_binary("/proc/self/exe", &result_mout);
         Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
@@ -234,8 +231,8 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
          << " tid= "  << tid << " omp_tid= "  << tid_omp << " cpu_id= "  << cpu_num);
 #endif
     char rank_prefix[54];
-    sprintf(rank_prefix, "mitos_%ld_openmp_distr_mon_%d_", ts_output_prefix_omp, tid);
-    Mitos_create_output(&mout, rank_prefix);
+    sprintf(rank_prefix, "mitos_%ld_out_%d_", ts_output_prefix_omp, tid);
+    Mitos_create_output(&mout, ts_output_prefix_omp, tid);
 #if VERBOSITY >= VERBOSE_MEDIUM
    pid_t curpid = getpid();
    LOG_MEDIUM("mitoshooks.cpp: on_ompt_callback_thread_begin(), Curpid:= " << curpid);
@@ -314,7 +311,7 @@ void ompt_finalize(ompt_data_t *tool_data) {
             << omp_get_wtime() - *(double *) (tool_data->ptr));
 
     printf("[Mitos] End Sampler...\n");
-    Mitos_merge_files("mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon", "mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_mon_" + std::to_string(tid_omp_first));
+    Mitos_merge_files("mitos_" + std::to_string(ts_output_prefix_omp) + "_out_", "mitos_" + std::to_string(ts_output_prefix_omp) + "_out_" + std::to_string(tid_omp_first));
     {
         auto bin_name = [](pid_t pid) -> std::string {    
             char buffer[1024];
@@ -336,7 +333,7 @@ void ompt_finalize(ompt_data_t *tool_data) {
         };   
         std::cout << "\n*******************************************************************\n\n";
         std::cout << "Samples collected and written as raw data. Run the following command for post-processing the samples: \n ";
-        std::cout << "./mitos_omp_post_process " <<bin_name(getpid()) << " mitos_" + std::to_string(ts_output_prefix_omp) + "_openmp_distr_monresult\n";                    
+        std::cout << "./mitos_omp_post_process " <<bin_name(getpid()) << " mitos_" + std::to_string(ts_output_prefix_omp) + "_out_result\n";                    
         std::cout << "\n*******************************************************************\n\n";    
     }
         

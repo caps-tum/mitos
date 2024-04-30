@@ -43,13 +43,19 @@ SymtabAPI::Symtab *symtab_obj;
 SymtabCodeSource *symtab_code_src;
 int sym_success = 0;
 
-int Mitos_create_output(mitos_output *mout, const char *prefix_name)
+int Mitos_create_output(struct mitos_output *mout, const char *prefix_name)
+{
+
+}
+int Mitos_create_output(mitos_output *mout, long uid, long tid)
 {
     memset(mout,0,sizeof(struct mitos_output));
 
+    char prefix_name[54];
+    sprintf(prefix_name, "mitos_%ld_out_%d_", uid, tid);
     // Set top directory name
     std::stringstream ss_dname_topdir;
-    ss_dname_topdir << prefix_name << "_" << std::time(NULL);
+    ss_dname_topdir << prefix_name;
     mout->dname_topdir = strdup(ss_dname_topdir.str().c_str());
 
     // Set data directory name
@@ -101,18 +107,6 @@ int Mitos_create_output(mitos_output *mout, const char *prefix_name)
     mout->ok = true;
 
     return 0;
-}
-
-char* Mitos_create_api_output(mitos_output *mout, const char *prefix_name)
-{
-
-    Mitos_create_output(mout, prefix_name);
-    char* virt_address = new char[(strlen(prefix_name) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
-    strcpy(virt_address, "/tmp/");
-    strcat(virt_address, prefix_name);
-    strcat(virt_address, "virt_address.txt");
-    
-    return virt_address;
 }
 
 int Mitos_pre_process(mitos_output *mout)

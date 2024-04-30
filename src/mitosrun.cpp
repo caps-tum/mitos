@@ -21,7 +21,7 @@ uint64_t freq;
 mitos_output mout;
 std::vector<perf_event_sample> samples;
 pid_t child_pid;
-static std::string address_file;
+std::string address_file;
 static bool use_period  = true;
 static bool set_period  = false;
 static bool set_frequency  = false;
@@ -177,7 +177,8 @@ int main(int argc, char **argv)
         child_pid = child;
 #endif // USE_IBS_FETCH || USE_IBS_OP
 
-        int err = Mitos_create_output(&mout, "mitos");
+        auto unique_id = time(NULL);
+        int err = Mitos_create_output(&mout, unique_id);
         if(err)
         {
             kill(child, SIGKILL);
