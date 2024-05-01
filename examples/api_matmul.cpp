@@ -2,6 +2,7 @@
 #include <fstream>
 #include <vector>
 #include <cstdlib>
+#include <unistd.h>
 
 #include "../src/Mitos.h"
 #include "src/virtual_address_writer.h"
@@ -67,6 +68,8 @@ int main(int argc, char **argv)
     double *a,*b,*c;
     init_matrices(N,&a,&b,&c);
 
+    auto pid = getpid();
+
     auto unique_id = time(NULL);
     // Create output directories and get the location of the virtual address file to be created
     Mitos_create_output(&mout, unique_id);
@@ -75,9 +78,10 @@ int main(int argc, char **argv)
     Mitos_save_virtual_address_offset(virt_address);
     Mitos_pre_process(&mout);
 
+    Mitos_set_pid(pid);
     Mitos_set_handler_fn(&sample_handler,NULL);
     Mitos_set_sample_latency_threshold(3);
-    Mitos_set_sample_time_frequency(4000);
+    Mitos_set_sample_event_period(4000);
 
     std::cout << "[Mitos] Beginning sampler\n";
     Mitos_begin_sampler();

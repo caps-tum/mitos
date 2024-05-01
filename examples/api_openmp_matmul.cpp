@@ -70,8 +70,8 @@ void matmul(int N, double *a, double *b, double *c)
         Mitos_set_pid(tid);
 
         Mitos_set_handler_fn(&sample_handler,NULL);
-        Mitos_set_sample_latency_threshold(3);
-        Mitos_set_sample_time_frequency(4000);
+        Mitos_set_sample_latency_threshold(10);
+        Mitos_set_sample_event_period(4000);
 
         std::cout << "[Mitos] Beginning sampler: " << omp_get_thread_num() <<"\n";
         Mitos_begin_sampler();
