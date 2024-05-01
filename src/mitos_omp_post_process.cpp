@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
     std::cout << "Executable Name: " << bin_name << '\n';
     std::cout << "Results directory: " << dir_prefix << '\n';
     
-    Mitos_set_result_mout(&mouts, dir_prefix.c_str());    
+    Mitos_set_result_mout(&mouts, dir_prefix);    
     Mitos_process_binary(bin_name.c_str(), &mouts);
     Mitos_post_process(bin_name.c_str(), &mouts, dir_prefix);
 

@@ -64,17 +64,13 @@ int main (int argc, char *argv[])
    // send timestamp from rank 0 to all others to synchronize folder prefix 
    MPI_Bcast(&ts_output, 1, MPI_LONG, 0, MPI_COMM_WORLD);
    
-   /* Process specific directory name */
-   // char rank_prefix[54];
-   // sprintf(rank_prefix, "mitos_%ld_rank_%d_", ts_output, taskid);
+   
+   // This function takes saved timestamp and taskid to save a unique directory name for every process.
    Mitos_create_output(&mout, ts_output, taskid);
+   
    // Create output directories and get the location of the virtual address file to be created
-   // auto virt_address = Mitos_create_api_output(&mout, rank_prefix);
    std::string virt_address = "/tmp/" + std::to_string(ts_output) + "_virt_address.txt";
    Mitos_save_virtual_address_offset(virt_address);
-   // Create output directories and get the location of the virtual address file to be created
-
-   Mitos_save_virtual_address_offset(std::string(virt_address));
    
    pid_t curpid = getpid();
    Mitos_pre_process(&mout);
@@ -173,17 +169,15 @@ int main (int argc, char *argv[])
    
    /* Post-processing of samplers*/
    if (taskid == MASTER) {
-      // Set name of the directories (where samples are stored)
-      std::string dir_prefix = "mitos_" + std::to_string(ts_output) + "_out_";
-      std::string prefix_first_rank = dir_prefix + "0";
-      std::string result_dir = dir_prefix + "result";
       
-      // Merges all the raw samples into a single raw_samples.csv file
-      Mitos_merge_files(dir_prefix, prefix_first_rank);
+      /* Merge and copy the thread-local raw samples into results directory*/
+    // Merges all the raw samples into a single raw_samples.csv file
+      std::string result_dir;
+      Mitos_merge_files(ts_output, result_dir);
       
       // Store result information
       mitos_output result_mout;
-      Mitos_set_result_mout(&result_mout, result_dir.c_str());    
+      Mitos_set_result_mout(&result_mout, result_dir);    
 
       // Read the binary for symbols
       Mitos_process_binary("/proc/self/exe", &result_mout);
@@ -191,6 +185,5 @@ int main (int argc, char *argv[])
       Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
    }
    MPI_Barrier(MPI_COMM_WORLD);
-   //delete[] virt_address;
    MPI_Finalize();
 }

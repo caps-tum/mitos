@@ -8,7 +8,6 @@
 
 thread_local static mitos_output mout;
 thread_local static char* virt_address;
-long tid_omp_first;
 static long ts_output_prefix_omp;
 
 #include <omp.h>
@@ -51,26 +50,19 @@ void matmul(int N, double *a, double *b, double *c)
 {
     ts_output_prefix_omp = time(NULL);
     #pragma omp parallel
-    {
+    { 
+
+        // Sampling MUST be done inside the parallel region.
         printf("Hello from thread %i of %i!\n", omp_get_thread_num(),
                omp_get_num_threads());
         
         /* Setting up mitos for every thread*/
         pid_t tid = gettid();
-        if(omp_get_thread_num() == 0){
-            tid_omp_first = tid;
-        }
-
-        /* Rank specific directory name*/
         
-        // Unique directory name for every rank
-        //char[] mitos_prexix_path = “/tmp/“ + mitos_unique_id + “/virt.txt”;
-        // char rank_prefix[54];
-        // sprintf(rank_prefix, "mitos_%ld_openmp_%d_", ts_output_prefix_omp, tid);
-
+        // This function takes saved timestamp and tid to save a unique directory name for every thread.
         Mitos_create_output(&mout, ts_output_prefix_omp, tid);
-        // Create output directories and get the location of the virtual address file to be created
-        // auto virt_address = Mitos_create_api_output(&mout, rank_prefix);
+
+        // The virtual offset is saved in this file
         std::string virt_address = "/tmp/" + std::to_string(ts_output_prefix_omp) + "_virt_address.txt";
         Mitos_save_virtual_address_offset(virt_address);
 
@@ -119,21 +111,16 @@ int main(int argc, char **argv)
     // Sampling done inside this function
     matmul(N,a,b,c);
     
-    // Post-processing of raw samples (to be done by the primary thread)
-    
+    /* Post-processing of raw samples (to be done by the primary thread)*/
+
     /* Merge and copy the thread-local raw samples into results directory*/
-    
-    // Set name of the directories (where samples are stored)
-    std::string dir_prefix = "mitos_" + std::to_string(ts_output_prefix_omp) + "_out_";
-    std::string prefix_first_thread = dir_prefix + std::to_string(tid_omp_first);
-    std::string result_dir = dir_prefix + "result";
-    
     // Merges all the raw samples into a single raw_samples.csv file
-    Mitos_merge_files(dir_prefix, prefix_first_thread);
-    
+    std::string result_dir;
+    Mitos_merge_files(ts_output_prefix_omp, result_dir);
+
     // Store result information
     mitos_output result_mout;
-    Mitos_set_result_mout(&result_mout, result_dir.c_str());     
+    Mitos_set_result_mout(&result_mout, result_dir);     
     
     // Read the binary for symbols
     if(Mitos_process_binary(argv[0], &result_mout))

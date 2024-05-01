@@ -66,12 +66,12 @@ long Mitos_z_index(struct perf_event_sample *s);
 // Output
 int Mitos_create_output(struct mitos_output *mout, long uid, long tid = 0);
 int Mitos_pre_process(struct mitos_output *mout);
-int Mitos_set_result_mout(mitos_output *mout, const char *prefix_name);
+int Mitos_set_result_mout(mitos_output *mout, std::string prefix_name);
 int Mitos_write_sample(struct perf_event_sample *s, struct mitos_output *mout);
 int Mitos_add_offsets(const char * virt_address, mitos_output *mout);
 int Mitos_process_binary(const char *bin_name, mitos_output *mout);
 int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir_prefix = "");
-int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir);
+int Mitos_merge_files(long unique_id, std::string &result_dir);
 int Mitos_modify_samples(const std::string& dir_prefix, const std::map<std::string, std::string>& path_replacements);
 int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string>& src_files);
 #ifdef __cplusplus

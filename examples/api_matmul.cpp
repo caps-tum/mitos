@@ -70,6 +70,7 @@ int main(int argc, char **argv)
     auto unique_id = time(NULL);
     // Create output directories and get the location of the virtual address file to be created
     Mitos_create_output(&mout, unique_id);
+    
     std::string virt_address = "/tmp/mitos_virt_addres.txt";
     Mitos_save_virtual_address_offset(virt_address);
     Mitos_pre_process(&mout);

@@ -171,11 +171,11 @@ int MPI_Finalize()
     Mitos_add_offsets(virt_address, &mout);
     // merge files
     if (mpi_rank == 0) {
-        int ret_val = Mitos_merge_files(std::string("mitos_") + std::to_string(ts_output) + "_out_", std::string("mitos_") + std::to_string(ts_output) + "_out_0");
+        std::string result_dir;
+        Mitos_merge_files(ts_output, result_dir);
         
         mitos_output result_mout;
-        std::string result_dir = "mitos_" + std::to_string(ts_output) + "_out_result";
-        Mitos_set_result_mout(&result_mout, result_dir.c_str());    
+        Mitos_set_result_mout(&result_mout, result_dir);    
         Mitos_process_binary("/proc/self/exe", &result_mout);
         Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
     }
@@ -311,7 +311,8 @@ void ompt_finalize(ompt_data_t *tool_data) {
             << omp_get_wtime() - *(double *) (tool_data->ptr));
 
     printf("[Mitos] End Sampler...\n");
-    Mitos_merge_files("mitos_" + std::to_string(ts_output_prefix_omp) + "_out_", "mitos_" + std::to_string(ts_output_prefix_omp) + "_out_" + std::to_string(tid_omp_first));
+    std::string result_dir;
+    Mitos_merge_files(ts_output_prefix_omp, result_dir);
     {
         auto bin_name = [](pid_t pid) -> std::string {    
             char buffer[1024];
@@ -333,7 +334,7 @@ void ompt_finalize(ompt_data_t *tool_data) {
         };   
         std::cout << "\n*******************************************************************\n\n";
         std::cout << "Samples collected and written as raw data. Run the following command for post-processing the samples: \n ";
-        std::cout << "./mitos_omp_post_process " <<bin_name(getpid()) << " mitos_" + std::to_string(ts_output_prefix_omp) + "_out_result\n";                    
+        std::cout << "./mitos_omp_post_process " << bin_name(getpid()) << " " << result_dir <<"\n";                    
         std::cout << "\n*******************************************************************\n\n";    
     }
         

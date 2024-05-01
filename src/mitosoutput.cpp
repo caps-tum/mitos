@@ -11,7 +11,6 @@
 #include "Mitos.h"
 
 #include <cstdlib>
-
 #ifndef __has_include
 static_assert(false, "__has_include not supported");
 #else
@@ -43,10 +42,6 @@ SymtabAPI::Symtab *symtab_obj;
 SymtabCodeSource *symtab_code_src;
 int sym_success = 0;
 
-int Mitos_create_output(struct mitos_output *mout, const char *prefix_name)
-{
-
-}
 int Mitos_create_output(mitos_output *mout, long uid, long tid)
 {
     memset(mout,0,sizeof(struct mitos_output));
@@ -141,14 +136,13 @@ int Mitos_pre_process(mitos_output *mout)
     return 0;
 }
 
-int Mitos_set_result_mout(mitos_output *mout, const char *prefix_name)
+int Mitos_set_result_mout(mitos_output *mout, std::string prefix_name)
 {
     memset(mout,0,sizeof(struct mitos_output));
 
     // Set top directory name
     std::stringstream ss_dname_topdir;
-    //ss_dname_topdir << prefix_name << "_" << std::time(NULL);
-    ss_dname_topdir << prefix_name;
+    ss_dname_topdir << prefix_name.c_str();
     mout->dname_topdir = strdup(ss_dname_topdir.str().c_str());
 
     // Set data directory name
@@ -590,21 +584,26 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir
 }
 
 
-int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix) {
-    // find exact directory name for mpi_rank 0
+int Mitos_merge_files(long unique_id, std::string &result_dir) {
+    
+    std::string dir_prefix = "mitos_" + std::to_string(unique_id) + "_out_";
+    result_dir = dir_prefix + "result";
+    
     fs::path path_root{"."};
     bool first_dir_found = false;
-    std::string path_first_dir{""};
+    std::string path_first_dir {""};
     for (auto const& dir_entry : std::filesystem::directory_iterator{path_root}) {
-        if (dir_entry.path().u8string().rfind("./" + dir_first_dir_prefix) == 0) {
+        if (dir_entry.path().filename().u8string().rfind(dir_prefix, 0) == 0) {
             path_first_dir = dir_entry.path().u8string();
             first_dir_found = true;
+            break;
         }
     }
     if(first_dir_found) {
         LOG_LOW("mitosoutput.cpp: Mitos_merge_files(), First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result");
     }else {
         // error, directory not found
+        std::cout << "Directory not found\n";
         return 1;
     }
     std::string path_dir_result = "./"+ dir_prefix + "result";
@@ -657,6 +656,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     }
     // TODO Copy Raw samples
     LOG_LOW("mitosoutput.cpp: Mitos_merge_files(), Merge successfully completed");
+
     return 0;
 }
 
