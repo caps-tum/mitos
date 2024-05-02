@@ -580,6 +580,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir
 
 
     Mitos_copy_sources(dir_prefix, src_files);
+    std::cout << "[Mitos] Samples saved in "<< dir_prefix << "\n";
     return 0;
 }
 
@@ -708,7 +709,7 @@ int Mitos_modify_samples(const std::string& dir_prefix, const std::map<std::stri
 int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string>& src_files) {
     
     if (src_files.empty()){
-        std::cout << "No source files to found. Check if you compiled your application with `-g` flag.\n";
+        std::cout << "No source files found. Check if you compiled your application with `-g` flag.\n";
         return 0;
     }
     std::string path_dir_result = "./"+ dir_prefix;

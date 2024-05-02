@@ -178,68 +178,7 @@ void procsmpl::init_attrs()
     procsmpl::init_attrs_ibs();
     return;
 #endif // USE_IBS_FETCH || USE_IBS_OP
-    num_attrs = 2;
-    attrs = (struct perf_event_attr*)malloc(num_attrs*sizeof(struct perf_event_attr));
-    num_attrs = 1;
-
-    struct perf_event_attr attr;
-    memset(&attr, 0, sizeof(struct perf_event_attr));
-    attr.size = sizeof(struct perf_event_attr);
-
-    attr.mmap = 1;
-    attr.mmap_data = 1;
-    attr.comm = 1;
-    attr.exclude_user = 0;
-    attr.exclude_kernel = 0;
-    attr.exclude_hv = 0;
-    attr.exclude_idle = 0;
-    attr.exclude_host = 0;
-    attr.exclude_guest = 1;
-    attr.exclusive = 0;
-    attr.pinned = 0;
-    attr.sample_id_all = 0;
-    attr.wakeup_events = 1;
-
-    if(use_frequency)
-    {
-        attr.sample_freq = sample_frequency;
-        attr.freq = 1;
-    }
-    else
-    {
-        attr.sample_period = sample_period;
-        attr.freq = 0;
-    }
-
-    attr.sample_type =
-        PERF_SAMPLE_IP |
-        PERF_SAMPLE_STREAM_ID |
-        PERF_SAMPLE_TIME |
-        PERF_SAMPLE_TID |
-        PERF_SAMPLE_CPU |
-        PERF_SAMPLE_ADDR |
-        PERF_SAMPLE_WEIGHT |
-        PERF_SAMPLE_TRANSACTION |
-        PERF_SAMPLE_DATA_SRC;
-
-    attr.type = PERF_TYPE_RAW;
-
-    // Set up load sampling
-    attr.type = PERF_TYPE_RAW;
-    attr.config = 0x5101cd;          // MEM_TRANS_RETIRED:LATENCY_THRESHOLD
-    attr.config1 = sample_latency_threshold;
-    attr.precise_ip = 2;
-    attr.disabled = 1;              // Event group leader starts disabled
-
-    attrs[0] = attr;
-
-    // Set up store sampling
-    attr.config = 0x5382d0;         // MEM_UOPS_RETIRED:ALL_STORES
-    attr.config1 = 0;
-    attr.precise_ip = 2;
-    attr.disabled = 0;              // Event group follower starts enabled
-
-    attrs[1] = attr;
+    procsmpl::init_attrs_pebs();
 }
 
 // get total number of cores
@@ -307,10 +246,77 @@ void procsmpl::init_attrs_ibs() {
     for (int i = 0; i< num_attrs; i++) {
         LOG_HIGH("procsmpl.cpp:init_attrs_ibs(), perf_event_attr: " << i);
         struct perf_event_attr attr;
+        // Make this a member --> rename --> use both frequency and period
         init_attr_ibs(&attr, sample_period);
         attrs[i] = attr;
     }
 }
+#else //PEBS
+    void procsmpl::init_attrs_pebs()
+    {
+        num_attrs = 2;
+        attrs = (struct perf_event_attr*)malloc(num_attrs*sizeof(struct perf_event_attr));
+        num_attrs = 1;
+
+        struct perf_event_attr attr;
+        memset(&attr, 0, sizeof(struct perf_event_attr));
+        attr.size = sizeof(struct perf_event_attr);
+
+        attr.mmap = 1;
+        attr.mmap_data = 1;
+        attr.comm = 1;
+        attr.exclude_user = 0;
+        attr.exclude_kernel = 0;
+        attr.exclude_hv = 0;
+        attr.exclude_idle = 0;
+        attr.exclude_host = 0;
+        attr.exclude_guest = 1;
+        attr.exclusive = 0;
+        attr.pinned = 0;
+        attr.sample_id_all = 0;
+        attr.wakeup_events = 1;
+
+        if(use_frequency)
+        {
+            attr.sample_freq = sample_frequency;
+            attr.freq = 1;
+        }
+        else
+        {
+            attr.sample_period = sample_period;
+            attr.freq = 0;
+        }
+
+        attr.sample_type =
+            PERF_SAMPLE_IP |
+            PERF_SAMPLE_STREAM_ID |
+            PERF_SAMPLE_TIME |
+            PERF_SAMPLE_TID |
+            PERF_SAMPLE_CPU |
+            PERF_SAMPLE_ADDR |
+            PERF_SAMPLE_WEIGHT |
+            PERF_SAMPLE_TRANSACTION |
+            PERF_SAMPLE_DATA_SRC;
+
+        attr.type = PERF_TYPE_RAW;
+
+        // Set up load sampling
+        attr.type = PERF_TYPE_RAW;
+        attr.config = 0x5101cd;          // MEM_TRANS_RETIRED:LATENCY_THRESHOLD
+        attr.config1 = sample_latency_threshold;
+        attr.precise_ip = 2;
+        attr.disabled = 1;              // Event group leader starts disabled
+
+        attrs[0] = attr;
+
+        // Set up store sampling
+        attr.config = 0x5382d0;         // MEM_UOPS_RETIRED:ALL_STORES
+        attr.config1 = 0;
+        attr.precise_ip = 2;
+        attr.disabled = 0;              // Event group follower starts enabled
+
+        attrs[1] = attr;
+    }
 #endif // USE_IBS_FETCH || USE_IBS_OP
 
 int procsmpl::begin_sampling()
@@ -348,9 +354,11 @@ int threadsmpl::init(procsmpl *parent)
     ret = init_perf_events(proc_parent->attrs, proc_parent->num_attrs, proc_parent->mmap_size);
     if(ret)
         return ret;
+    #ifndef USE_IBS_THREAD_MIGRATION
     ret = init_thread_sighandler();
     if(ret)
         return ret;
+    #endif
     // Success
     ready = 1;
 
@@ -527,7 +535,11 @@ int threadsmpl::begin_sampling()
 
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
     #if defined( USE_IBS_THREAD_MIGRATION)
+        // make it a method
         update_sampling_events();
+        // ret = init_thread_sighandler();
+        // if(ret)
+        //     return ret;
         return 0;
     #endif // USE_IBS_THREAD_MIGRATION
     #ifdef USE_IBS_ALL_ON

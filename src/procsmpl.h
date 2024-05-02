@@ -82,6 +82,7 @@ private:
     /* Set up perf_event_attr (to be used by thread-local samplers)*/
     void init_attrs();
     void init_attrs_ibs();
+    void init_attrs_pebs();
 private:
     /* Configure perf events*/
     int num_attrs;
