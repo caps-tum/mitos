@@ -84,7 +84,7 @@ void threadsmpl::update_sampling_events_ibs() {
 #endif // VERBOSITY >= VERBOSE_HIGH
     while(ret != 0) {
         int active_core = get_psr(); // OLD function
-        //int active_core = sched_getcpu(); // this function only works on mitoshooks, monitoring occurs on same thread as computation
+        // int active_core = sched_getcpu(); // this function only works on mitoshooks, monitoring occurs on same thread as computation
         LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), Core: " << active_core << ", Events: " << tsmp.num_events);
         LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), Method called: "<< active_core);
         if (active_core < 0) {
@@ -189,11 +189,10 @@ int get_num_cores() {
 
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
 
-void procsmpl::init_attrs_ibs(struct perf_event_attr* attr, __u64 sample_period) {
+void procsmpl::set_attrs_ibs(struct perf_event_attr* attr) {
     memset(attr, 0, sizeof(struct perf_event_attr));
     attr->size = sizeof(struct perf_event_attr);
 
-    attr->sample_period = sample_period;
 #ifdef USE_IBS_FETCH
     attr->type = 8; // IBS_Fetch
     attr->config = (1ULL<<57);
@@ -230,7 +229,17 @@ void procsmpl::init_attrs_ibs(struct perf_event_attr* attr, __u64 sample_period)
     attr->comm_exec = 1;
     attr->comm = 1;
     attr->task = 1;
-    attr->freq = 0;
+    //attr->freq = 0;
+    if(use_frequency)
+    {
+        attr->sample_freq = sample_frequency;
+        attr->freq = 1;
+    }
+    else
+    {
+        attr->sample_period = sample_period;
+        attr->freq = 0;
+    }
 }
 
 void procsmpl::init_attrs_ibs() {
@@ -246,8 +255,7 @@ void procsmpl::init_attrs_ibs() {
     for (int i = 0; i< num_attrs; i++) {
         LOG_HIGH("procsmpl.cpp:init_attrs_ibs(), perf_event_attr: " << i);
         struct perf_event_attr attr;
-        // Make this a member --> rename --> use both frequency and period
-        init_attrs_ibs(&attr, sample_period);
+        set_attrs_ibs(&attr);
         attrs[i] = attr;
     }
 }
@@ -454,11 +462,11 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
 
 int threadsmpl::init_thread_sighandler(int event_id)
 {
-    #ifdef USE_IBS_THREAD_MIGRATION
+#ifdef USE_IBS_THREAD_MIGRATION
     int i = event_id;
-    #else
+#else
     int i;
-    #endif
+#endif
     int ret;
     struct f_owner_ex fown_ex;
     struct sigaction sact;
@@ -523,11 +531,12 @@ int threadsmpl::init_thread_sighandler(int event_id)
             perror("fcntl SIG2");
             return 1;
         } 
-    #ifndef USE_IBS_THREAD_MIGRATION
+#ifndef USE_IBS_THREAD_MIGRATION
     }
-    #endif
+    return 0;
+#endif
 
-    #ifdef USE_IBS_THREAD_MIGRATION
+#ifdef USE_IBS_THREAD_MIGRATION
     ret = ioctl(events[i].fd, PERF_EVENT_IOC_RESET, 0);
     if(ret)
         perror("ioctl ST");
@@ -538,9 +547,8 @@ int threadsmpl::init_thread_sighandler(int event_id)
     }
 
     return ret;
-    #endif
+#endif
 
-    return 0;
 }
 
 
@@ -556,11 +564,7 @@ int threadsmpl::begin_sampling()
 
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
     #if defined( USE_IBS_THREAD_MIGRATION)
-        // make it a method
         update_sampling_events_ibs();
-        // ret = init_thread_sighandler();
-        // if(ret)
-        //     return ret;
         return 0;
     #endif // USE_IBS_THREAD_MIGRATION
     #ifdef USE_IBS_ALL_ON
@@ -674,76 +678,6 @@ int threadsmpl::enable_event(int event_id) {
             return 1;
         }
         int ret = init_thread_sighandler(event_id);
-        // // init sighandler
-        // int ret;
-        // struct f_owner_ex fown_ex;
-        // struct sigaction sact;
-
-        // // Set up signal handler
-        // memset(&sact, 0, sizeof(sact));
-        // sact.sa_sigaction = &thread_sighandler;
-        // sact.sa_flags = SA_SIGINFO;
-
-        // ret = sigaction(SIGIO, &sact, NULL);
-        // if(ret)
-        // {
-        //     perror("sigaction");
-        //     return ret;
-        // }
-
-        // // Unblock SIGIO signal if necessary
-        // sigset_t sold, snew;
-        // sigemptyset(&sold);
-        // sigemptyset(&snew);
-        // sigaddset(&snew, SIGIO);
-
-        // ret = sigprocmask(SIG_SETMASK, NULL, &sold);
-        // if(ret)
-        // {
-        //     perror("sigaction");
-        //     return 1;
-        // }
-
-        // if(sigismember(&sold, SIGIO))
-        // {
-        //     ret = sigprocmask(SIG_UNBLOCK, &snew, NULL);
-        //     if(ret)
-        //     {
-        //         perror("sigaction");
-        //         return 1;
-        //     }
-        // }
-
-        // ret = fcntl(events[event_id].fd, F_SETSIG, SIGIO);
-        // if(ret)
-        // {
-        //     perror("fcntl 1");
-        //     return 1;
-        // }
-        // ret = fcntl(events[event_id].fd, F_SETFL, O_NONBLOCK | O_ASYNC);
-        // if(ret)
-        // {
-        //     perror("fcntl 2");
-        //     return 1;
-        // }
-        // // Set owner to current thread
-        // fown_ex.type = F_OWNER_TID;
-        // fown_ex.pid = gettid();
-        // ret = fcntl(events[event_id].fd, F_SETOWN_EX, (unsigned long)&fown_ex);
-        // if(ret)
-        // {
-        //     perror("fcntl 3");
-        //     return 1;
-        // }
-
-        // ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_RESET, 0);
-        // if(ret)
-        //     perror("ioctl ST");
-
-        // ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_ENABLE, 0);
-        // if (ret == 0) {
-        //     events[event_id].running = 1;
-        // }
         clock_t end = clock();
         float seconds_update = (float) (end - start) / CLOCKS_PER_SEC;
         LOG_HIGH("procsmpl.cpp:enable_event()," <<seconds_update<< "," << ret);

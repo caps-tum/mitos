@@ -82,9 +82,9 @@ private:
     /* Set up perf_event_attr (to be used by thread-local samplers)*/
     void init_attrs();
     void init_attrs_ibs();
-    void init_attrs_ibs(struct perf_event_attr* attr, __u64 sample_period);
+    void set_attrs_ibs(struct perf_event_attr* attr);
     void init_attrs_pebs();
-private:
+
     /* Configure perf events*/
     int num_attrs;
     struct perf_event_attr *attrs;
