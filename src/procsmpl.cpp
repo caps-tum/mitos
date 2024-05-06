@@ -65,7 +65,7 @@ int perf_event_open(struct perf_event_attr *attr,
 #endif // USE_IBS_FETCH || USE_IBS_OP
 }
 
-void update_sampling_events() {
+void threadsmpl::update_sampling_events_ibs() {
     int ret = 1;
     // TODO: Fix case where thread migration fails
     // Option A: stop monitoring for this process
@@ -85,8 +85,8 @@ void update_sampling_events() {
     while(ret != 0) {
         int active_core = get_psr(); // OLD function
         //int active_core = sched_getcpu(); // this function only works on mitoshooks, monitoring occurs on same thread as computation
-        LOG_HIGH ("procsmpl.cpp:update_sampling_events(), Core: " << active_core << ", Events: " << tsmp.num_events);
-        LOG_HIGH ("procsmpl.cpp:update_sampling_events(), Method called: "<< active_core);
+        LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), Core: " << active_core << ", Events: " << tsmp.num_events);
+        LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), Method called: "<< active_core);
         if (active_core < 0) {
             std::cout << "No Core active\n";
             return;
@@ -106,8 +106,8 @@ void update_sampling_events() {
     clock_t t_end = clock();
     float seconds = (float)(t_end - t_start) / CLOCKS_PER_SEC;
    int t_end2 = clock_gettime(clk_id, &tp2);
-   LOG_HIGH ("procsmpl.cpp:update_sampling_events(), has_switch: " << has_switch << "," << (tp2.tv_nsec - tp.tv_nsec));
-   LOG_HIGH ("procsmpl.cpp:update_sampling_events(), has_switch: " << has_switch << "," << seconds);
+   LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), has_switch: " << has_switch << "," << (tp2.tv_nsec - tp.tv_nsec));
+   LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), has_switch: " << has_switch << "," << seconds);
     float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
 #endif // VERBOSITY >= VERBOSE_HIGH
 }
@@ -140,7 +140,7 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
     tsmp.counter_update++;
     if(tsmp.counter_update >= 250) {
         tsmp.counter_update = 0;
-        update_sampling_events();
+        tsmp.update_sampling_events_ibs();
     }
 #endif // USE_IBS_THREAD_MIGRATION
 #if VERBOSITY >= VERBOSE_HIGH
@@ -189,7 +189,7 @@ int get_num_cores() {
 
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
 
-void init_attr_ibs(struct perf_event_attr* attr, __u64 sample_period) {
+void procsmpl::init_attrs_ibs(struct perf_event_attr* attr, __u64 sample_period) {
     memset(attr, 0, sizeof(struct perf_event_attr));
     attr->size = sizeof(struct perf_event_attr);
 
@@ -247,7 +247,7 @@ void procsmpl::init_attrs_ibs() {
         LOG_HIGH("procsmpl.cpp:init_attrs_ibs(), perf_event_attr: " << i);
         struct perf_event_attr attr;
         // Make this a member --> rename --> use both frequency and period
-        init_attr_ibs(&attr, sample_period);
+        init_attrs_ibs(&attr, sample_period);
         attrs[i] = attr;
     }
 }
@@ -452,9 +452,14 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
 #endif // USE_IBS_FETCH || USE_IBS_OP
 }
 
-int threadsmpl::init_thread_sighandler()
+int threadsmpl::init_thread_sighandler(int event_id)
 {
-    int i, ret;
+    #ifdef USE_IBS_THREAD_MIGRATION
+    int i = event_id;
+    #else
+    int i;
+    #endif
+    int ret;
     struct f_owner_ex fown_ex;
     struct sigaction sact;
 
@@ -492,9 +497,10 @@ int threadsmpl::init_thread_sighandler()
             return 1;
         }
     } 
-
+#ifndef USE_IBS_THREAD_MIGRATION
     for(i=0; i<num_events; i++)
     {
+#endif
         // Set perf event events[i].fd to signal
         ret = fcntl(events[i].fd, F_SETSIG, SIGIO);
         if(ret)
@@ -517,7 +523,22 @@ int threadsmpl::init_thread_sighandler()
             perror("fcntl SIG2");
             return 1;
         } 
+    #ifndef USE_IBS_THREAD_MIGRATION
     }
+    #endif
+
+    #ifdef USE_IBS_THREAD_MIGRATION
+    ret = ioctl(events[i].fd, PERF_EVENT_IOC_RESET, 0);
+    if(ret)
+        perror("ioctl ST");
+
+    ret = ioctl(events[i].fd, PERF_EVENT_IOC_ENABLE, 0);
+    if (ret == 0) {
+        events[i].running = 1;
+    }
+
+    return ret;
+    #endif
 
     return 0;
 }
@@ -536,7 +557,7 @@ int threadsmpl::begin_sampling()
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
     #if defined( USE_IBS_THREAD_MIGRATION)
         // make it a method
-        update_sampling_events();
+        update_sampling_events_ibs();
         // ret = init_thread_sighandler();
         // if(ret)
         //     return ret;
@@ -652,76 +673,77 @@ int threadsmpl::enable_event(int event_id) {
             perror("mmap");
             return 1;
         }
-        // init sighandler
-        int ret;
-        struct f_owner_ex fown_ex;
-        struct sigaction sact;
+        int ret = init_thread_sighandler(event_id);
+        // // init sighandler
+        // int ret;
+        // struct f_owner_ex fown_ex;
+        // struct sigaction sact;
 
-        // Set up signal handler
-        memset(&sact, 0, sizeof(sact));
-        sact.sa_sigaction = &thread_sighandler;
-        sact.sa_flags = SA_SIGINFO;
+        // // Set up signal handler
+        // memset(&sact, 0, sizeof(sact));
+        // sact.sa_sigaction = &thread_sighandler;
+        // sact.sa_flags = SA_SIGINFO;
 
-        ret = sigaction(SIGIO, &sact, NULL);
-        if(ret)
-        {
-            perror("sigaction");
-            return ret;
-        }
+        // ret = sigaction(SIGIO, &sact, NULL);
+        // if(ret)
+        // {
+        //     perror("sigaction");
+        //     return ret;
+        // }
 
-        // Unblock SIGIO signal if necessary
-        sigset_t sold, snew;
-        sigemptyset(&sold);
-        sigemptyset(&snew);
-        sigaddset(&snew, SIGIO);
+        // // Unblock SIGIO signal if necessary
+        // sigset_t sold, snew;
+        // sigemptyset(&sold);
+        // sigemptyset(&snew);
+        // sigaddset(&snew, SIGIO);
 
-        ret = sigprocmask(SIG_SETMASK, NULL, &sold);
-        if(ret)
-        {
-            perror("sigaction");
-            return 1;
-        }
+        // ret = sigprocmask(SIG_SETMASK, NULL, &sold);
+        // if(ret)
+        // {
+        //     perror("sigaction");
+        //     return 1;
+        // }
 
-        if(sigismember(&sold, SIGIO))
-        {
-            ret = sigprocmask(SIG_UNBLOCK, &snew, NULL);
-            if(ret)
-            {
-                perror("sigaction");
-                return 1;
-            }
-        }
+        // if(sigismember(&sold, SIGIO))
+        // {
+        //     ret = sigprocmask(SIG_UNBLOCK, &snew, NULL);
+        //     if(ret)
+        //     {
+        //         perror("sigaction");
+        //         return 1;
+        //     }
+        // }
 
-        ret = fcntl(events[event_id].fd, F_SETSIG, SIGIO);
-        if(ret)
-        {
-            perror("fcntl 1");
-            return 1;
-        }
-        ret = fcntl(events[event_id].fd, F_SETFL, O_NONBLOCK | O_ASYNC);
-        if(ret)
-        {
-            perror("fcntl 2");
-            return 1;
-        }
-        // Set owner to current thread
-        fown_ex.type = F_OWNER_TID;
-        fown_ex.pid = gettid();
-        ret = fcntl(events[event_id].fd, F_SETOWN_EX, (unsigned long)&fown_ex);
-        if(ret)
-        {
-            perror("fcntl 3");
-            return 1;
-        }
+        // ret = fcntl(events[event_id].fd, F_SETSIG, SIGIO);
+        // if(ret)
+        // {
+        //     perror("fcntl 1");
+        //     return 1;
+        // }
+        // ret = fcntl(events[event_id].fd, F_SETFL, O_NONBLOCK | O_ASYNC);
+        // if(ret)
+        // {
+        //     perror("fcntl 2");
+        //     return 1;
+        // }
+        // // Set owner to current thread
+        // fown_ex.type = F_OWNER_TID;
+        // fown_ex.pid = gettid();
+        // ret = fcntl(events[event_id].fd, F_SETOWN_EX, (unsigned long)&fown_ex);
+        // if(ret)
+        // {
+        //     perror("fcntl 3");
+        //     return 1;
+        // }
 
-        ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_RESET, 0);
-        if(ret)
-            perror("ioctl ST");
+        // ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_RESET, 0);
+        // if(ret)
+        //     perror("ioctl ST");
 
-        ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_ENABLE, 0);
-        if (ret == 0) {
-            events[event_id].running = 1;
-        }
+        // ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_ENABLE, 0);
+        // if (ret == 0) {
+        //     events[event_id].running = 1;
+        // }
         clock_t end = clock();
         float seconds_update = (float) (end - start) / CLOCKS_PER_SEC;
         LOG_HIGH("procsmpl.cpp:enable_event()," <<seconds_update<< "," << ret);
