@@ -7,7 +7,7 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
-
+#define COUNTER_THRESHOLD 250
 thread_local static threadsmpl tsmp;
 
 // get thread id of the current thread (if using single thread. returns the process id).
@@ -22,7 +22,7 @@ int get_psr() {
     // -L flag: list running cores for all threads belonging to the given pid
 
     std::stringstream  str_cmd;
-    str_cmd << "ps -o psr " << tsmp.proc_parent->target_pid;
+    str_cmd << "ps -o psr -p" << tsmp.proc_parent->target_pid;
 
     char buf[1035];
     FILE *fp;
@@ -38,7 +38,7 @@ int get_psr() {
         output << buf;
     }
     if (pclose(fp)) {
-        printf("Command not found or exited with error status\n");
+        printf("[Mitos] Command not found or exited with error status\n");
         return -1;
     }
     // convert command output to core_id
@@ -74,7 +74,7 @@ void threadsmpl::update_sampling_events_ibs() {
     // - try to enable new running core
     // - try to disable old monitored core
     // function completes if enable thread was successful
-    // possible disadvantage: function only completes if enable_event has been successful (no other IBS process runs on same core)
+    // possible disadvantage: function only completes if enable_event_ibs has been successful (no other IBS process runs on same core)
 #if VERBOSITY >= VERBOSE_HIGH
    int has_switch = 0;
    struct timespec tp;
@@ -83,12 +83,19 @@ void threadsmpl::update_sampling_events_ibs() {
    int t_start2 = clock_gettime(clk_id, &tp);
 #endif // VERBOSITY >= VERBOSE_HIGH
     while(ret != 0) {
-        int active_core = get_psr(); // OLD function
-        // int active_core = sched_getcpu(); // this function only works on mitoshooks, monitoring occurs on same thread as computation
+
+        // For mitosrun and single-threaded applications with API calls
+        int active_core = get_psr(); 
+        
+        // For mitoshooks (especially OpenMP code), use this call; this enables monitoring on same thread as computation
+        // int active_core = sched_getcpu();
+
         LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), Core: " << active_core << ", Events: " << tsmp.num_events);
         LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), Method called: "<< active_core);
         if (active_core < 0) {
-            std::cout << "No Core active\n";
+            std::cout << "[Mitos] No Core active\n";
+            std::cout << "[Mitos] If you're using OpenMP mitoshooks or OpenMP API calls, modify the source code ";
+            std::cout << "and set active_core = sched_getcpu() in procsmpl.cpp\n";
             return;
         }
         for (int i = 0; i < tsmp.num_events; i++) {
@@ -96,9 +103,9 @@ void threadsmpl::update_sampling_events_ibs() {
             #if VERBOSITY >= VERBOSE_HIGH
                has_switch =  !(tsmp.events[i].running);
             #endif // VERBOSITY >= VERBOSE_HIGH
-                ret = tsmp.enable_event(active_core);
+                ret = tsmp.enable_event_ibs(active_core);
             }else {
-                tsmp.disable_event(i);
+                tsmp.disable_event_ibs(i);
             }
         }
     }
@@ -138,7 +145,7 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
 #endif // VERBOSITY >= VERBOSE_HIGH
 #if defined( USE_IBS_THREAD_MIGRATION)
     tsmp.counter_update++;
-    if(tsmp.counter_update >= 250) {
+    if(tsmp.counter_update >= COUNTER_THRESHOLD) {
         tsmp.counter_update = 0;
         tsmp.update_sampling_events_ibs();
     }
@@ -506,6 +513,7 @@ int threadsmpl::init_thread_sighandler(int event_id)
         }
     } 
 #ifndef USE_IBS_THREAD_MIGRATION
+    // THREAD_MIGRATION uses i = event_id only. No loop needed for THREAD_MIGRATION
     for(i=0; i<num_events; i++)
     {
 #endif
@@ -613,7 +621,7 @@ void threadsmpl::end_sampling()
         }
     #elif defined(USE_IBS_THREAD_MIGRATION)
         for (i = 0; i < num_events; i++) {
-            tsmp.disable_event(i);
+            tsmp.disable_event_ibs(i);
         }
     #endif  // USE_IBS_ALL_ON || USE_IBS_THREAD_MIGRATION
 #else // PEBS (Intel)
@@ -652,20 +660,22 @@ void threadsmpl::end_sampling()
 
 }
 
-
-int threadsmpl::enable_event(int event_id) {
+/* IBS_THREAD_MIGRATION specific function.
+*  Enables the performance monitoring event specified by event_id
+*/ 
+int threadsmpl::enable_event_ibs(int event_id) {
     if (!events[event_id].running) {
-        LOG_HIGH("procsmpl.cpp:enable_event(), Enable event for " << event_id);
+        LOG_HIGH("procsmpl.cpp:enable_event_ibs(), Enable event for " << event_id);
         clock_t start = clock();
         events[event_id].fd = -1;
         events[event_id].fd = perf_event_open(&events[event_id].attr, tsmp.proc_parent->target_pid, event_id, events[event_id].fd, 0);
         if(events[event_id].fd == -1)
         {
             perror("perf_event_open");
-            LOG_HIGH("procsmpl.cpp:enable_event(), Core " << event_id << " could not be initialized");
+            LOG_HIGH("procsmpl.cpp:enable_event_ibs(), Core " << event_id << " could not be initialized");
             return 1;
         }else {
-            LOG_HIGH("procsmpl.cpp:enable_event(), Perf Open Success: " << events[event_id].fd);
+            LOG_HIGH("procsmpl.cpp:enable_event_ibs(), Perf Open Success: " << events[event_id].fd);
         }
 
         // Create mmap buffer for samples
@@ -680,23 +690,25 @@ int threadsmpl::enable_event(int event_id) {
         int ret = init_thread_sighandler(event_id);
         clock_t end = clock();
         float seconds_update = (float) (end - start) / CLOCKS_PER_SEC;
-        LOG_HIGH("procsmpl.cpp:enable_event()," <<seconds_update<< "," << ret);
+        LOG_HIGH("procsmpl.cpp:enable_event_ibs()," <<seconds_update<< "," << ret);
         return ret;
     }
     return 0; // process already running, success
 }
 
-
-void threadsmpl::disable_event(int event_id) {
+/* IBS_THREAD_MIGRATION specific function.
+*  Disables the performance monitoring event specified by event_id
+*/ 
+void threadsmpl::disable_event_ibs(int event_id) {
     if(events[event_id].running) {
-        LOG_HIGH("procsmpl.cpp:disable_event(), Disable event for " << event_id);
+        LOG_HIGH("procsmpl.cpp:disable_event_ibs(), Disable event for " << event_id);
         events[event_id].running = 0;
         if (events[event_id].fd != -1) {
             int ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_DISABLE, 0);
             //close(events[event_id].fd);
             if(ret)
                 perror("ioctl END");
-                LOG_HIGH("procsmpl.cpp:disable_event(), Err ioctl END: " << events[event_id].fd <<", " << event_id);
+                LOG_HIGH("procsmpl.cpp:disable_event_ibs(), Err ioctl END: " << events[event_id].fd <<", " << event_id);
         }
 
     }

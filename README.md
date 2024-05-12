@@ -71,6 +71,7 @@ The default installation of `mitos` will be configured for Intel based **Precise
    $> export CC=/path/to/clang*
    $> export CXX=/path/to/clang++*
    ```
+
 #### B. CMake Configuration
    
    OpenMP (version 5.0 and later) must be installed. If OpenMP is not installed at the default loaction, make sure to specify the paths so that `cmake` finds it.
@@ -78,6 +79,9 @@ The default installation of `mitos` will be configured for Intel based **Precise
    Enable `MITOSHOOKS_OPEN_MP` option by `-DMITOSHOOKS_OPEN_MP=ON`
 
 #### C. Building
+   **Note:** If using `IBS_THREAD_MIGRATION`, modify the source code
+            and set active_core = sched_getcpu() in procsmpl.cpp(L#91)
+
    * Build and install `mitos` and `mitoshooks`
    * Depending on the build method (cmake/make/command-line), link the application with `mitos` and `mitoshooks` by specifying their paths.
    * See the section on `Source Code Attribution` below for more details on how to save the source code information with the samples collected while running your application.
@@ -89,7 +93,8 @@ The default installation of `mitos` will be configured for Intel based **Precise
    * See the section on `Source Code Attribution` below for more details on how to save the source code information with the samples collected while running your application.
 
 ## API
-
+   **Note:** If using `IBS_THREAD_MIGRATION` for collecting samples for an OpenMP application, modify the source code and set active_core = sched_getcpu() in procsmpl.cpp(L#91)
+   
    * Build and install `mitos`
    * Depending on the build method (cmake/make/command-line), link the application with `mitos` by specifying their paths.
    * See the section on `Source Code Attribution` below for more details on how to save the source code information with the samples collected while running your application.

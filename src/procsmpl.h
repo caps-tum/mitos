@@ -151,9 +151,9 @@ public:
 
     perf_event_sample pes;
 
-    /*IBS specific functions for enabling and disabling perf events.*/
-    int enable_event(int event_id);
-    void disable_event(int event_id);
+    /*IBS THREAD MIGRATION specific functions for enabling and disabling perf events.*/
+    int enable_event_ibs(int event_id);
+    void disable_event_ibs(int event_id);
     void update_sampling_events_ibs();
 
 };
