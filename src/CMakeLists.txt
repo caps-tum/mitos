@@ -2,6 +2,13 @@
 include_directories(${MPI_INCLUDE_PATH})
 include_directories(${DYNINST_INCLUDE_DIR})
 
+# If VERBOSITY is not defined via command line, use default
+if(DEFINED VERBOSITY)
+    set(VERBOSITY ${VERBOSITY} CACHE STRING "Set verbosity level")
+    message(STATUS "VERBOSITY set to ${VERBOSITY}")
+    add_definitions(-DVERBOSITY=${VERBOSITY})
+endif()
+
 # Source and header files
 set(MITOS_SRC_FILES procsmpl.cpp mmap_processor.cpp mattr.cpp mitosoutput.cpp Mitos.cpp)
 set(MITOS_HDR_FILES procsmpl.h mmap_processor.h mattr.h Mitos.h)
@@ -14,12 +21,12 @@ add_library(mitoshooks SHARED ${MITOSHOOKS_SRC_FILES} ${MITOS_SRC_FILES})
 
 # Binaries
 add_executable(mitosrun mitosrun.cpp)
-add_executable(mitos_post_process mitos_post_process.cpp)
+add_executable(mitos_omp_post_process mitos_omp_post_process.cpp)
 
 # Linkage
 target_link_libraries(mitos mitoshooks numa hwloc ${CMAKE_THREAD_LIBS_INIT} stdc++fs)
 target_link_libraries(mitosrun mitos)
-target_link_libraries(mitos_post_process mitos common)
+target_link_libraries(mitos_omp_post_process mitos common)
 target_link_libraries(mitoshooks dl)
 
 if(MPI_FOUND)
@@ -37,7 +44,7 @@ install(FILES ${MITOS_HDR_PUBLIC}
 install(TARGETS mitosrun
         EXPORT mitos-targets
         DESTINATION bin)
-install(TARGETS mitos_post_process
+install(TARGETS mitos_omp_post_process
         EXPORT mitos-targets
         DESTINATION bin) 
 install(TARGETS mitos

@@ -29,15 +29,15 @@ void Mitos_set_handler_fn(sample_handler_fn_t h, void* args)
 {
     m_procsmpl.set_handler_fn(h,args); 
 }
-
-void Mitos_begin_sampler() 
+// Set return type int
+int Mitos_begin_sampler() 
 {
-    m_procsmpl.begin_sampling(); 
+    return m_procsmpl.begin_sampling(); 
 }
 
 void Mitos_end_sampler() 
 {
-    m_procsmpl.end_sampling(); 
+   m_procsmpl.end_sampling(); 
 }
 
 

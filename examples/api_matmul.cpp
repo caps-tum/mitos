@@ -2,13 +2,12 @@
 #include <fstream>
 #include <vector>
 #include <cstdlib>
+#include <unistd.h>
 
 #include "../src/Mitos.h"
 #include "src/virtual_address_writer.h"
 
 mitos_output mout;
-
-#include <omp.h>
 
 void sample_handler(perf_event_sample *sample, void *args)
 {
@@ -46,7 +45,6 @@ void init_matrices(int N, double **a, double **b, double **c)
 
 void matmul(int N, double *a, double *b, double *c)
 {
-#pragma omp parallel for
     for(int i=0; i<N; ++i)
     {
         for(int j=0; j<N; ++j)
@@ -65,31 +63,40 @@ void matmul(int N, double *a, double *b, double *c)
 
 int main(int argc, char **argv)
 {
-    save_virtual_address_offset("/tmp/mitos_virt_address.txt");
     int N = (argc == 2) ? atoi(argv[1]) : 1024;
 
     double *a,*b,*c;
     init_matrices(N,&a,&b,&c);
 
-    Mitos_create_output(&mout, "mitos");
+    auto pid = getpid();
+
+    auto unique_id = time(NULL);
+    // Create output directories and get the location of the virtual address file to be created
+    Mitos_create_output(&mout, unique_id);
+    
+    std::string virt_address = "/tmp/mitos_virt_addres.txt";
+    Mitos_save_virtual_address_offset(virt_address);
     Mitos_pre_process(&mout);
 
+    Mitos_set_pid(pid);
     Mitos_set_handler_fn(&sample_handler,NULL);
     Mitos_set_sample_latency_threshold(3);
-    Mitos_set_sample_time_frequency(4000);
+    Mitos_set_sample_event_period(4000);
 
+    std::cout << "[Mitos] Beginning sampler\n";
     Mitos_begin_sampler();
     matmul(N,a,b,c);
     Mitos_end_sampler();
-    std::set<std::string> src_files;
-    Mitos_add_offsets("/tmp/mitos_virt_address.txt", &mout);
-    if(Mitos_openFile(argv[0], &mout))
+    std::cout << "[Mitos] End sampler\n";
+    Mitos_add_offsets(virt_address.c_str(), &mout);
+    if(Mitos_process_binary(argv[0], &mout))
     {
         std::cerr << "Error opening binary file!" << std::endl;
         return 1;
     }
-    if(Mitos_post_process(argv[0],&mout, src_files)){
+    if(Mitos_post_process(argv[0],&mout, mout.dname_topdir)){
         std::cerr << "Error post processing!" << std::endl;
         return 1;
     }
+    return 0;
 }

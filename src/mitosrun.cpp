@@ -12,15 +12,19 @@
 size_t bufsz;
 uint64_t period;
 uint64_t thresh;
+uint64_t freq;
 
 #define DEFAULT_BUFSZ       4096
-#define DEFAULT_THRESH      10
+#define DEFAULT_THRESH      4
 #define DEFAULT_PERIOD      4000
-
+#define DEFAULT_FREQ      4000
 mitos_output mout;
 std::vector<perf_event_sample> samples;
 pid_t child_pid;
-static std::string address_file;
+std::string address_file;
+static bool use_period  = true;
+static bool set_period  = false;
+static bool set_frequency  = false;
 /* Helper function for writing samples.*/
 void dump_samples()
 {
@@ -53,7 +57,8 @@ void usage(char **argv)
     std::cerr << "    [options]:" << std::endl;
     std::cerr << "        -b sample buffer size (default 4096)" << std::endl;
     std::cerr << "        -p sample period (default 4000)" << std::endl;
-    std::cerr << "        -t sample latency threshold (default 10)" << std::endl;
+    std::cerr << "        -t sample latency threshold (default 4)" << std::endl;
+    std::cerr << "        -f sample frequency (default 4000)" << std::endl;
     std::cerr << "        -l location of virtual address file (default /tmp/mitos_virt_address.txt)" << std::endl;
     std::cerr << "    <cmd>: command to sample on (required)" << std::endl;
     std::cerr << "    [args]: command arguments" << std::endl;
@@ -65,6 +70,7 @@ void set_defaults()
     bufsz = DEFAULT_BUFSZ;
     period = DEFAULT_PERIOD;
     thresh = DEFAULT_THRESH;
+    freq = DEFAULT_FREQ;
     address_file = "/tmp/mitos_virt_address.txt";
 }
 
@@ -74,7 +80,7 @@ int parse_args(int argc, char **argv)
     set_defaults();
 
     int c;
-    while((c=getopt(argc, argv, "b:p:t:l:")) != -1)
+    while((c=getopt(argc, argv, "b:p:t:f:l:")) != -1)
     {
         switch(c)
         {
@@ -83,9 +89,16 @@ int parse_args(int argc, char **argv)
                 break;
             case 'p':
                 period = atoi(optarg);
+                set_period = true;
+                use_period = true;
                 break;
             case 't':
                 thresh = atoi(optarg);
+                break;
+            case 'f':
+                freq = atoi(optarg);
+                set_frequency = true;
+                use_period = false;
                 break;
             case 'l':
                 address_file = optarg;
@@ -164,7 +177,8 @@ int main(int argc, char **argv)
         child_pid = child;
 #endif // USE_IBS_FETCH || USE_IBS_OP
 
-        int err = Mitos_create_output(&mout, "mitos");
+        auto unique_id = time(NULL);
+        int err = Mitos_create_output(&mout, unique_id);
         if(err)
         {
             kill(child, SIGKILL);
@@ -179,11 +193,30 @@ int main(int argc, char **argv)
         }
         Mitos_set_pid(child);
         LOG_MEDIUM("mitosrun.cpp:main(), pid: " << child);
-        Mitos_set_sample_event_period(period);
+
         Mitos_set_sample_latency_threshold(thresh);
+        std::cout << "[Mitos] Mitos sampling parameters: Latency threshold = " << thresh << ", ";
+        if(set_period)
+        {
+            Mitos_set_sample_event_period(period);
+            std::cout << "Sampling period: " << period <<"\n";
+        } else{
+            if(use_period)
+            {
+                Mitos_set_sample_event_period(period);
+                std::cout << "Sampling period: " << period <<"\n";
+            }   
+            else
+            {
+                Mitos_set_sample_time_frequency(freq);
+                std::cout << "Sampling frequency: " << freq <<"\n";
+            }
+                
+        }
 
         Mitos_set_handler_fn(&sample_handler,NULL);
 
+        std::cout << "[Mitos] Beginning sampler\n";
         Mitos_begin_sampler();
         {
             ptrace(PTRACE_CONT,child,0,0);
@@ -193,23 +226,22 @@ int main(int argc, char **argv)
             while(!WIFEXITED(status));
         }
         Mitos_end_sampler();
+        std::cout << "[Mitos] End sampler\n";
         LOG_LOW("mitosrun.cpp:main(), Dumping leftover samples...");
         dump_samples(); // anything left over
-        std::cout << "Command completed! Processing samples..." <<  "\n";
-        std::cout << "Bin Name" << argv[cmdarg] <<  "\n";
-        std::set<std::string> src_files;
+        std::cout << "[Mitos] Command completed! Processing samples..." <<  "\n";
+        std::cout << "[Mitos] Bin Name: " << argv[cmdarg] <<  "\n";
+        
         Mitos_add_offsets(address_file.c_str(), &mout);
-        if(Mitos_openFile(argv[cmdarg], &mout))
+        if(Mitos_process_binary(argv[cmdarg], &mout))
         {
             std::cerr << "Error opening binary file!" << std::endl;
             return 1;
         }
-        if(Mitos_post_process(argv[cmdarg],&mout, src_files)){
+        if(Mitos_post_process(argv[cmdarg],&mout, mout.dname_topdir)){
             std::cerr << "Error post processing!" << std::endl;
             return 1;
         }
-        Mitos_copy_sources(mout.dname_topdir, src_files);   
-        std::cout << "Done!\n";
     }
 
     return 0;

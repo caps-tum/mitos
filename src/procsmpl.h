@@ -82,7 +82,9 @@ private:
     /* Set up perf_event_attr (to be used by thread-local samplers)*/
     void init_attrs();
     void init_attrs_ibs();
-private:
+    void set_attrs_ibs(struct perf_event_attr* attr);
+    void init_attrs_pebs();
+
     /* Configure perf events*/
     int num_attrs;
     struct perf_event_attr *attrs;
@@ -130,7 +132,7 @@ public:
     /*Initialize perf_events and setup thread specific signal handler.*/
     int init(procsmpl *parent);
     int init_perf_events(struct perf_event_attr *attrs, int num_attrs, size_t mmap_size);
-    int init_thread_sighandler();
+    int init_thread_sighandler(int event_id = 0);
 
     /* Parent process calling the thread.*/
     procsmpl *proc_parent;
@@ -149,9 +151,10 @@ public:
 
     perf_event_sample pes;
 
-    /*IBS specific functions for enabling and disabling perf events.*/
-    int enable_event(int event_id);
-    void disable_event(int event_id);
+    /*IBS THREAD MIGRATION specific functions for enabling and disabling perf events.*/
+    int enable_event_ibs(int event_id);
+    void disable_event_ibs(int event_id);
+    void update_sampling_events_ibs();
 
 };
 

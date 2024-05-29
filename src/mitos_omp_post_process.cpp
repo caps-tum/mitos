@@ -64,17 +64,8 @@ int main(int argc, char* argv[])
     std::cout << "Executable Name: " << bin_name << '\n';
     std::cout << "Results directory: " << dir_prefix << '\n';
     
-    Mitos_set_result_mout(&mouts, dir_prefix.c_str());    
-    Mitos_openFile(bin_name.c_str(), &mouts);
-    
-    std::set<std::string> src_files;
+    Mitos_set_result_mout(&mouts, dir_prefix);    
+    Mitos_process_binary(bin_name.c_str(), &mouts);
+    Mitos_post_process(bin_name.c_str(), &mouts, dir_prefix);
 
-    Mitos_post_process(bin_name.c_str(), &mouts, src_files);
-
-    std::cout << "Following source files found:\n";
-    for (auto& str : src_files) {
-        std::cout << str << "\n";
-    }
-
-    Mitos_copy_sources(dir_prefix, src_files);
 }

@@ -11,7 +11,6 @@
 #include "Mitos.h"
 
 #include <cstdlib>
-
 #ifndef __has_include
 static_assert(false, "__has_include not supported");
 #else
@@ -43,13 +42,15 @@ SymtabAPI::Symtab *symtab_obj;
 SymtabCodeSource *symtab_code_src;
 int sym_success = 0;
 
-int Mitos_create_output(mitos_output *mout, const char *prefix_name)
+int Mitos_create_output(mitos_output *mout, long uid, long tid)
 {
     memset(mout,0,sizeof(struct mitos_output));
 
+    char prefix_name[54];
+    sprintf(prefix_name, "mitos_%ld_out_%d_", uid, tid);
     // Set top directory name
     std::stringstream ss_dname_topdir;
-    ss_dname_topdir << prefix_name << "_" << std::time(NULL);
+    ss_dname_topdir << prefix_name;
     mout->dname_topdir = strdup(ss_dname_topdir.str().c_str());
 
     // Set data directory name
@@ -98,7 +99,6 @@ int Mitos_create_output(mitos_output *mout, const char *prefix_name)
         return 1;
     }
 
-
     mout->ok = true;
 
     return 0;
@@ -136,14 +136,13 @@ int Mitos_pre_process(mitos_output *mout)
     return 0;
 }
 
-int Mitos_set_result_mout(mitos_output *mout, const char *prefix_name)
+int Mitos_set_result_mout(mitos_output *mout, std::string prefix_name)
 {
     memset(mout,0,sizeof(struct mitos_output));
 
     // Set top directory name
     std::stringstream ss_dname_topdir;
-    //ss_dname_topdir << prefix_name << "_" << std::time(NULL);
-    ss_dname_topdir << prefix_name;
+    ss_dname_topdir << prefix_name.c_str();
     mout->dname_topdir = strdup(ss_dname_topdir.str().c_str());
 
     // Set data directory name
@@ -309,6 +308,7 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
 
 int Mitos_add_offsets(const char * virt_address, mitos_output *mout){
 
+    fflush(mout->fout_raw); // flush raw samples stream before post processing starts
     // Read the virtual address
     std::string loc = virt_address;
     std::ifstream foffset(loc);
@@ -351,14 +351,21 @@ int Mitos_add_offsets(const char * virt_address, mitos_output *mout){
         fraw << modified_line << std::endl;
     }
 
-    fraw.close(); // Close the file
+    // Close the files
+    fraw.close(); 
+
+    /* 
+    * Close the samples.csv and raw_samples.csv opened in Mitos_create_output
+    */
+    fclose(mout->fout_raw);
+    fclose(mout->fout_processed);
     LOG_LOW("mitoshooks.cpp: add_offsets(), Successfully added virtual address at the start of each line.");
     return 0;
 }
 
 void Mitos_write_samples_header(std::ofstream& fproc) {
     // Write header for processed samples
-    fproc << "source,line,instruction,bytes,offset,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
+    fproc << "source,line,instruction,bytes,virt_addr_offset,ip,variable,buffer_size,dims,xidx,yidx,zidx,pid,tid,time,addr,cpu,latency,";
 #if !defined(USE_IBS_FETCH) && !defined(USE_IBS_OP)
     fproc << "level,hit_type,op_type,snoop_mode,tlb_access,";
 #endif
@@ -388,7 +395,7 @@ void Mitos_write_samples_header(std::ofstream& fproc) {
     fproc << "\n";
 }
 
-int Mitos_openFile(const char *bin_name, mitos_output *mout)
+int Mitos_process_binary(const char *bin_name, mitos_output *mout)
 {
 // Open input/output files
 std::ifstream fraw(mout->fname_raw);
@@ -406,9 +413,9 @@ std::ofstream fproc(mout->fname_processed);
 
     return 0;
 #else // USE DYNINST
-    LOG_MEDIUM("mitosoutput.cpp, Mitos_openFile(), bin_name: " << bin_name);
+    LOG_MEDIUM("mitosoutput.cpp, Mitos_process_binary(), bin_name: " << bin_name);
     sym_success = SymtabAPI::Symtab::openFile(symtab_obj,bin_name);
-    LOG_MEDIUM("mitosoutput.cpp, Mitos_openFile(), sym_success: " << sym_success);
+    LOG_MEDIUM("mitosoutput.cpp, Mitos_process_binary(), sym_success: " << sym_success);
     if(!sym_success)
     {
         std::cerr << "Mitos: Failed to open Symtab object for " << bin_name << std::endl;
@@ -428,7 +435,7 @@ std::ofstream fproc(mout->fname_processed);
 #endif // USE_DYNINST
 }
 
-int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files)
+int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir_prefix)
 {
     int err = 0;
     // Open input/output files
@@ -451,8 +458,17 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
     Dyninst::Offset ip;
     std::string line, ip_str;
     int tmp_line = 0;
+    std::set <long> thread_count, core_count;
+    std::set<std::string> src_files; // For storing the name of source files
     LOG_HIGH("mitosoutput.cpp: Mitos_post_process(), reading raw samples...");
-
+    long num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    bool use_num_cores = true;
+    if (num_cores < 0) {
+        std::cerr << "Error determining the number of CPU cores." << std::endl;
+        use_num_cores = false;
+    }
+    long skipped_samples = 0;
+    
     while(std::getline(fraw, line).good())
     {
         // Unknown values
@@ -461,16 +477,34 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         std::stringstream instruction;
         std::stringstream bytes;
 
+        std::stringstream ss(line);
+        std::vector<std::string> tokens;
+        std::string token;
+        while (std::getline(ss, token, ',')) {
+            tokens.push_back(token);
+        }
+        long tid = std::stol(tokens[9]); 
+        long cpu = std::stol(tokens[12]);
+        
+        // Skip damaged samples
+        if((use_num_cores && (cpu > num_cores)) || cpu > 10000)
+        {
+            skipped_samples++;
+            continue;
+        }
+        thread_count.insert(tid);
+        core_count.insert(cpu);
+
         // Extract offset     
-        size_t offset_endpos = line.find(',');
-        str_offset = line.substr(0,offset_endpos);
-        offsetAddr = strtoll(str_offset.c_str(),NULL,0);
+        offsetAddr = strtoll(tokens[0].c_str(),NULL,0);
+        
         // Extract ip
-        size_t ip_endpos = (line.substr(offset_endpos+1)).find(',');
-        std::string ip_str = line.substr(offset_endpos+1,ip_endpos);
-        ip = (Dyninst::Offset)(strtoull(ip_str.c_str(),NULL,0) - offsetAddr);
+        ip = (Dyninst::Offset)(strtoull(tokens[1].c_str(),NULL,0) - offsetAddr);
+        
         if(tmp_line%4000==0)
-            std::cout << "ip: " << ip <<"\n";
+            LOG_MEDIUM("mitosoutput.cpp: Mitos_post_process(), Extracted instruction pointer (ip): " << ip);
+        if(tmp_line%100000==0 && tmp_line !=0)    
+            std::cout << " Collecting samples ("<< tmp_line<<  " samples processed as of now)...\n";
         // Parse ip for source line info
         std::vector<SymtabAPI::Statement::Ptr> stats;
         sym_success = symtab_obj->getSourceLines(stats, ip);
@@ -483,6 +517,7 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         if(!source.empty()){
             src_files.insert(source);
         }
+        
 
         // Parse ip for instruction info
         void *inst_raw = NULL;
@@ -525,26 +560,51 @@ int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::s
         std::cerr << "Mitos: Failed to delete raw sample file!\n";
         return 1;
     }
+    #if VERBOSITY >= VERBOSE_LOW
+    LOG_MEDIUM("mitosoutput.cpp:Mitos_post_process(), Threads are: ");
+    std::cout << "      ";
+    for (auto &threads : thread_count){
+        std::cout << threads << ", ";
+    } 
+    std::cout << "\n";
+    LOG_MEDIUM("mitosoutput.cpp:Mitos_post_process(), Cores are: ");
+    std::cout << "      ";
+    for (auto &cores : core_count){
+        std::cout << cores << ", ";
+    }
+    std::cout << "\n";
+    #endif
+    
+    std::cout << "[Mitos] Collected " << tmp_line << " samples from " << core_count.size() <<" core(s) and ";
+    std::cout << thread_count.size() << " thread(s). Skipped " << skipped_samples << " garbage sample(s).\n";
 
+
+    Mitos_copy_sources(dir_prefix, src_files);
+    std::cout << "[Mitos] Samples saved in "<< dir_prefix << "\n";
     return 0;
 }
 
 
-int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir_prefix) {
-    // find exact directory name for mpi_rank 0
+int Mitos_merge_files(long unique_id, std::string &result_dir) {
+    
+    std::string dir_prefix = "mitos_" + std::to_string(unique_id) + "_out_";
+    result_dir = dir_prefix + "result";
+    
     fs::path path_root{"."};
     bool first_dir_found = false;
-    std::string path_first_dir{""};
+    std::string path_first_dir {""};
     for (auto const& dir_entry : std::filesystem::directory_iterator{path_root}) {
-        if (dir_entry.path().u8string().rfind("./" + dir_first_dir_prefix) == 0) {
+        if (dir_entry.path().filename().u8string().rfind(dir_prefix, 0) == 0) {
             path_first_dir = dir_entry.path().u8string();
             first_dir_found = true;
+            break;
         }
     }
     if(first_dir_found) {
         LOG_LOW("mitosoutput.cpp: Mitos_merge_files(), First Dir Found, copy Files From " << path_first_dir << " to result folder: ./" << dir_prefix << "result");
     }else {
         // error, directory not found
+        std::cout << "Directory not found\n";
         return 1;
     }
     std::string path_dir_result = "./"+ dir_prefix + "result";
@@ -555,8 +615,9 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     fs::create_directory(path_dir_result + "/src");
     // copy first directory
     fs::copy(path_first_dir, path_dir_result, fs::copy_options::overwrite_existing | fs::copy_options::recursive);
+    LOG_LOW("mitosoutput.cpp, Mitos_merge_files(), Deleting " << path_first_dir);
     // delete first folder
-    //fs::remove_all(path_first_dir);
+    fs::remove_all(path_first_dir);
 
     std::string path_samples_dest = path_dir_result + "/data/raw_samples.csv";
     // check if file exist
@@ -587,7 +648,8 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
                     }
                     file_samples_in.close();
                     // delete old folder
-                    //fs::remove_all(dir_entry.path().u8string());
+                    LOG_LOW("mitosoutput.cpp, Mitos_merge_files(), Deleting " << dir_entry.path().u8string());
+                    fs::remove_all(dir_entry.path().u8string());
                 }
             }
         } // END LOOP
@@ -595,6 +657,7 @@ int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_firs
     }
     // TODO Copy Raw samples
     LOG_LOW("mitosoutput.cpp: Mitos_merge_files(), Merge successfully completed");
+
     return 0;
 }
 
@@ -645,10 +708,28 @@ int Mitos_modify_samples(const std::string& dir_prefix, const std::map<std::stri
 
 int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string>& src_files) {
     
+    if (src_files.empty()){
+        std::cout << "No source files found. Check if you compiled your application with `-g` flag.\n";
+        return 0;
+    }
     std::string path_dir_result = "./"+ dir_prefix;
     // copy source files
 
-    LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copying source files to result folder");
+    std::cout <<  "[Mitos] Copying following source files to result folder: \n";
+    int system_file_count = 0;
+    for (const auto &src : src_files)
+    {
+        if(src.substr(0,4) != "/usr")  
+        {
+            std::cout << src << "\n";
+        }
+        else ++system_file_count;
+    }
+    if(system_file_count > 0) {
+        std::cout << "Skipping " << system_file_count << " system files (Located in /usr/)\n";
+    }
+    
+    
     std::string path_src_dir = path_dir_result + "/src";
 
     auto common_prefix = [&]() -> std::pair<std::string, int> {    
@@ -676,10 +757,10 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
                 // Extract the substring up to the last occurrence of '/'
                 commonPath.first = prefix.substr(0, lastSlashPos + 1); // Include the '/' in the result
                 commonPath.second = lastSlashPos + 1;
-                std::cout << "\nCommon Path: " << commonPath.first << "\n";
+                LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Common File Path" << commonPath.first);
                 return commonPath;
             } else {
-                std::cout << "No '/' found in the path." << "\n";
+                LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), No '/' found in the path.");
                 return commonPath;
             }
         }
@@ -696,7 +777,7 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
 
     for (auto &path:path_replacements)
     {
-        std::cout << "Original path: " << path.first << ", Modfied path: " << path.second << "\n";
+        LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Original filepath: " << path.first << ", Modfied filepath: " << path.second);
     }
     
 
@@ -724,13 +805,12 @@ int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string
             // Copy the file
             fs::copy(src_file, temp);
 
-            std::cout << "File copied successfully." << "\n";
         } catch (const std::exception& ex) {
             std::cerr << "Error: " << ex.what() << "\n";
         }   
     }
 
-    LOG_LOW("mitosoutput.cpp: Mitos_copy_sources(), Copied all the files.");
+    std::cout << "\n[Mitos] Copied all the files. Post-processing finished.\n";
     Mitos_modify_samples(dir_prefix, path_replacements);
     return 0;
 }
