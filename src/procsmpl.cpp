@@ -7,7 +7,7 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
-
+#define COUNTER_THRESHOLD 250
 thread_local static threadsmpl tsmp;
 
 // get thread id of the current thread (if using single thread. returns the process id).
@@ -22,7 +22,7 @@ int get_psr() {
     // -L flag: list running cores for all threads belonging to the given pid
 
     std::stringstream  str_cmd;
-    str_cmd << "ps -o psr " << tsmp.proc_parent->target_pid;
+    str_cmd << "ps -o psr -p" << tsmp.proc_parent->target_pid;
 
     char buf[1035];
     FILE *fp;
@@ -38,7 +38,7 @@ int get_psr() {
         output << buf;
     }
     if (pclose(fp)) {
-        printf("Command not found or exited with error status\n");
+        printf("[Mitos] Command not found or exited with error status\n");
         return -1;
     }
     // convert command output to core_id
@@ -65,7 +65,7 @@ int perf_event_open(struct perf_event_attr *attr,
 #endif // USE_IBS_FETCH || USE_IBS_OP
 }
 
-void update_sampling_events() {
+void threadsmpl::update_sampling_events_ibs() {
     int ret = 1;
     // TODO: Fix case where thread migration fails
     // Option A: stop monitoring for this process
@@ -74,42 +74,49 @@ void update_sampling_events() {
     // - try to enable new running core
     // - try to disable old monitored core
     // function completes if enable thread was successful
-    // possible disadvantage: function only completes if enable_event has been successful (no other IBS process runs on same core)
-#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+    // possible disadvantage: function only completes if enable_event_ibs has been successful (no other IBS process runs on same core)
+#if VERBOSITY >= VERBOSE_HIGH
    int has_switch = 0;
    struct timespec tp;
    struct timespec tp2;
    clockid_t clk_id = CLOCK_PROCESS_CPUTIME_ID;
    int t_start2 = clock_gettime(clk_id, &tp);
-#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
+#endif // VERBOSITY >= VERBOSE_HIGH
     while(ret != 0) {
-        int active_core = get_psr(); // OLD function
-        //int active_core = sched_getcpu(); // this function only works on mitoshooks, monitoring occurs on same thread as computation
-        LOG_HIGH ("procsmpl.cpp:update_sampling_events(), Core: " << active_core << ", Events: " << tsmp.num_events);
-        LOG_HIGH ("procsmpl.cpp:update_sampling_events(), Method called: "<< active_core);
+
+        // For mitosrun and single-threaded applications with API calls
+        int active_core = get_psr(); 
+        
+        // For mitoshooks (especially OpenMP code), use this call; this enables monitoring on same thread as computation
+        // int active_core = sched_getcpu();
+
+        LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), Core: " << active_core << ", Events: " << tsmp.num_events);
+        LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), Method called: "<< active_core);
         if (active_core < 0) {
-            std::cout << "No Core active\n";
+            std::cout << "[Mitos] No Core active\n";
+            std::cout << "[Mitos] If you're using OpenMP mitoshooks or OpenMP API calls, modify the source code ";
+            std::cout << "and set active_core = sched_getcpu() in procsmpl.cpp\n";
             return;
         }
         for (int i = 0; i < tsmp.num_events; i++) {
             if (active_core == i) {
-            #if CURRENT_VERBOSITY >= VERBOSE_HIGH
+            #if VERBOSITY >= VERBOSE_HIGH
                has_switch =  !(tsmp.events[i].running);
-            #endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
-                ret = tsmp.enable_event(active_core);
+            #endif // VERBOSITY >= VERBOSE_HIGH
+                ret = tsmp.enable_event_ibs(active_core);
             }else {
-                tsmp.disable_event(i);
+                tsmp.disable_event_ibs(i);
             }
         }
     }
-#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+#if VERBOSITY >= VERBOSE_HIGH
     clock_t t_end = clock();
     float seconds = (float)(t_end - t_start) / CLOCKS_PER_SEC;
    int t_end2 = clock_gettime(clk_id, &tp2);
-   LOG_HIGH ("procsmpl.cpp:update_sampling_events(), has_switch: " << has_switch << "," << (tp2.tv_nsec - tp.tv_nsec));
-   LOG_HIGH ("procsmpl.cpp:update_sampling_events(), has_switch: " << has_switch << "," << seconds);
+   LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), has_switch: " << has_switch << "," << (tp2.tv_nsec - tp.tv_nsec));
+   LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), has_switch: " << has_switch << "," << seconds);
     float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
-#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
+#endif // VERBOSITY >= VERBOSE_HIGH
 }
 
 void thread_sighandler(int sig, siginfo_t *info, void *extra)
@@ -133,22 +140,22 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
     }
 
     ioctl(fd, PERF_EVENT_IOC_REFRESH, 1);
-#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+#if VERBOSITY >= VERBOSE_HIGH
    clock_t time_process_end = clock();
-#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
+#endif // VERBOSITY >= VERBOSE_HIGH
 #if defined( USE_IBS_THREAD_MIGRATION)
     tsmp.counter_update++;
-    if(tsmp.counter_update >= 250) {
+    if(tsmp.counter_update >= COUNTER_THRESHOLD) {
         tsmp.counter_update = 0;
-        update_sampling_events();
+        tsmp.update_sampling_events_ibs();
     }
 #endif // USE_IBS_THREAD_MIGRATION
-#if CURRENT_VERBOSITY >= VERBOSE_HIGH
+#if VERBOSITY >= VERBOSE_HIGH
     double t_end = ((double) clock())/ CLOCKS_PER_SEC;
     float seconds = (float)(time_process_end - start) / CLOCKS_PER_SEC;
     float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
     LOG_HIGH ("procsmpl.cpp:thread_sighandler(), t_start: " t_start <<", t_end: " << t_end << ", gettid(): " << gettid() << ", fd: " << fd << ", sched_getcpu(): " << sched_getcpu());
-#endif // CURRENT_VERBOSITY >= VERBOSE_HIGH
+#endif // VERBOSITY >= VERBOSE_HIGH
 }
 
 
@@ -178,68 +185,7 @@ void procsmpl::init_attrs()
     procsmpl::init_attrs_ibs();
     return;
 #endif // USE_IBS_FETCH || USE_IBS_OP
-    num_attrs = 2;
-    attrs = (struct perf_event_attr*)malloc(num_attrs*sizeof(struct perf_event_attr));
-    num_attrs = 1;
-
-    struct perf_event_attr attr;
-    memset(&attr, 0, sizeof(struct perf_event_attr));
-    attr.size = sizeof(struct perf_event_attr);
-
-    attr.mmap = 1;
-    attr.mmap_data = 1;
-    attr.comm = 1;
-    attr.exclude_user = 0;
-    attr.exclude_kernel = 0;
-    attr.exclude_hv = 0;
-    attr.exclude_idle = 0;
-    attr.exclude_host = 0;
-    attr.exclude_guest = 1;
-    attr.exclusive = 0;
-    attr.pinned = 0;
-    attr.sample_id_all = 0;
-    attr.wakeup_events = 1;
-
-    if(use_frequency)
-    {
-        attr.sample_freq = sample_frequency;
-        attr.freq = 1;
-    }
-    else
-    {
-        attr.sample_period = sample_period;
-        attr.freq = 0;
-    }
-
-    attr.sample_type =
-        PERF_SAMPLE_IP |
-        PERF_SAMPLE_STREAM_ID |
-        PERF_SAMPLE_TIME |
-        PERF_SAMPLE_TID |
-        PERF_SAMPLE_CPU |
-        PERF_SAMPLE_ADDR |
-        PERF_SAMPLE_WEIGHT |
-        PERF_SAMPLE_TRANSACTION |
-        PERF_SAMPLE_DATA_SRC;
-
-    attr.type = PERF_TYPE_RAW;
-
-    // Set up load sampling
-    attr.type = PERF_TYPE_RAW;
-    attr.config = 0x5101cd;          // MEM_TRANS_RETIRED:LATENCY_THRESHOLD
-    attr.config1 = sample_latency_threshold;
-    attr.precise_ip = 2;
-    attr.disabled = 1;              // Event group leader starts disabled
-
-    attrs[0] = attr;
-
-    // Set up store sampling
-    attr.config = 0x5382d0;         // MEM_UOPS_RETIRED:ALL_STORES
-    attr.config1 = 0;
-    attr.precise_ip = 2;
-    attr.disabled = 0;              // Event group follower starts enabled
-
-    attrs[1] = attr;
+    procsmpl::init_attrs_pebs();
 }
 
 // get total number of cores
@@ -250,11 +196,10 @@ int get_num_cores() {
 
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
 
-void init_attr_ibs(struct perf_event_attr* attr, __u64 sample_period) {
+void procsmpl::set_attrs_ibs(struct perf_event_attr* attr) {
     memset(attr, 0, sizeof(struct perf_event_attr));
     attr->size = sizeof(struct perf_event_attr);
 
-    attr->sample_period = sample_period;
 #ifdef USE_IBS_FETCH
     attr->type = 8; // IBS_Fetch
     attr->config = (1ULL<<57);
@@ -291,7 +236,17 @@ void init_attr_ibs(struct perf_event_attr* attr, __u64 sample_period) {
     attr->comm_exec = 1;
     attr->comm = 1;
     attr->task = 1;
-    attr->freq = 0;
+    //attr->freq = 0;
+    if(use_frequency)
+    {
+        attr->sample_freq = sample_frequency;
+        attr->freq = 1;
+    }
+    else
+    {
+        attr->sample_period = sample_period;
+        attr->freq = 0;
+    }
 }
 
 void procsmpl::init_attrs_ibs() {
@@ -307,10 +262,76 @@ void procsmpl::init_attrs_ibs() {
     for (int i = 0; i< num_attrs; i++) {
         LOG_HIGH("procsmpl.cpp:init_attrs_ibs(), perf_event_attr: " << i);
         struct perf_event_attr attr;
-        init_attr_ibs(&attr, sample_period);
+        set_attrs_ibs(&attr);
         attrs[i] = attr;
     }
 }
+#else //PEBS
+    void procsmpl::init_attrs_pebs()
+    {
+        num_attrs = 2;
+        attrs = (struct perf_event_attr*)malloc(num_attrs*sizeof(struct perf_event_attr));
+        num_attrs = 1;
+
+        struct perf_event_attr attr;
+        memset(&attr, 0, sizeof(struct perf_event_attr));
+        attr.size = sizeof(struct perf_event_attr);
+
+        attr.mmap = 1;
+        attr.mmap_data = 1;
+        attr.comm = 1;
+        attr.exclude_user = 0;
+        attr.exclude_kernel = 0;
+        attr.exclude_hv = 0;
+        attr.exclude_idle = 0;
+        attr.exclude_host = 0;
+        attr.exclude_guest = 1;
+        attr.exclusive = 0;
+        attr.pinned = 0;
+        attr.sample_id_all = 0;
+        attr.wakeup_events = 1;
+
+        if(use_frequency)
+        {
+            attr.sample_freq = sample_frequency;
+            attr.freq = 1;
+        }
+        else
+        {
+            attr.sample_period = sample_period;
+            attr.freq = 0;
+        }
+
+        attr.sample_type =
+            PERF_SAMPLE_IP |
+            PERF_SAMPLE_STREAM_ID |
+            PERF_SAMPLE_TIME |
+            PERF_SAMPLE_TID |
+            PERF_SAMPLE_CPU |
+            PERF_SAMPLE_ADDR |
+            PERF_SAMPLE_WEIGHT |
+            PERF_SAMPLE_TRANSACTION |
+            PERF_SAMPLE_DATA_SRC;
+
+        attr.type = PERF_TYPE_RAW;
+
+        // Set up load sampling
+        attr.type = PERF_TYPE_RAW;
+        attr.config = 0x5101cd;          // MEM_TRANS_RETIRED:LATENCY_THRESHOLD
+        attr.config1 = sample_latency_threshold;
+        attr.precise_ip = 2;
+        attr.disabled = 1;              // Event group leader starts disabled
+
+        attrs[0] = attr;
+
+        // Set up store sampling
+        attr.config = 0x5382d0;         // MEM_UOPS_RETIRED:ALL_STORES
+        attr.config1 = 0;
+        attr.precise_ip = 2;
+        attr.disabled = 0;              // Event group follower starts enabled
+
+        attrs[1] = attr;
+    }
 #endif // USE_IBS_FETCH || USE_IBS_OP
 
 int procsmpl::begin_sampling()
@@ -348,9 +369,11 @@ int threadsmpl::init(procsmpl *parent)
     ret = init_perf_events(proc_parent->attrs, proc_parent->num_attrs, proc_parent->mmap_size);
     if(ret)
         return ret;
+    #ifndef USE_IBS_THREAD_MIGRATION
     ret = init_thread_sighandler();
     if(ret)
         return ret;
+    #endif
     // Success
     ready = 1;
 
@@ -422,7 +445,7 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
 
         // Initialize perf_event call
         events[i].fd = perf_event_open(&events[i].attr, tsmp.proc_parent->target_pid, -1, events[0].fd, 0);
-        std::cout << "event no.(i): " << i << ", file descriptor(fd): "<< events[i].fd << "\n";
+        LOG_LOW("procsmpl.cpp:init_perf_events(), event no.(i): " << i << ", file descriptor(fd): "<< events[i].fd);
 
         if(events[i].fd == -1)
         {
@@ -444,9 +467,14 @@ int threadsmpl::init_perf_events(struct perf_event_attr *attrs, int num_attrs, s
 #endif // USE_IBS_FETCH || USE_IBS_OP
 }
 
-int threadsmpl::init_thread_sighandler()
+int threadsmpl::init_thread_sighandler(int event_id)
 {
-    int i, ret;
+#ifdef USE_IBS_THREAD_MIGRATION
+    int i = event_id;
+#else
+    int i;
+#endif
+    int ret;
     struct f_owner_ex fown_ex;
     struct sigaction sact;
 
@@ -484,9 +512,11 @@ int threadsmpl::init_thread_sighandler()
             return 1;
         }
     } 
-
+#ifndef USE_IBS_THREAD_MIGRATION
+    // THREAD_MIGRATION uses i = event_id only. No loop needed for THREAD_MIGRATION
     for(i=0; i<num_events; i++)
     {
+#endif
         // Set perf event events[i].fd to signal
         ret = fcntl(events[i].fd, F_SETSIG, SIGIO);
         if(ret)
@@ -509,9 +539,24 @@ int threadsmpl::init_thread_sighandler()
             perror("fcntl SIG2");
             return 1;
         } 
+#ifndef USE_IBS_THREAD_MIGRATION
+    }
+    return 0;
+#endif
+
+#ifdef USE_IBS_THREAD_MIGRATION
+    ret = ioctl(events[i].fd, PERF_EVENT_IOC_RESET, 0);
+    if(ret)
+        perror("ioctl ST");
+
+    ret = ioctl(events[i].fd, PERF_EVENT_IOC_ENABLE, 0);
+    if (ret == 0) {
+        events[i].running = 1;
     }
 
-    return 0;
+    return ret;
+#endif
+
 }
 
 
@@ -527,7 +572,7 @@ int threadsmpl::begin_sampling()
 
 #if defined(USE_IBS_FETCH) || defined(USE_IBS_OP)
     #if defined( USE_IBS_THREAD_MIGRATION)
-        update_sampling_events();
+        update_sampling_events_ibs();
         return 0;
     #endif // USE_IBS_THREAD_MIGRATION
     #ifdef USE_IBS_ALL_ON
@@ -576,7 +621,7 @@ void threadsmpl::end_sampling()
         }
     #elif defined(USE_IBS_THREAD_MIGRATION)
         for (i = 0; i < num_events; i++) {
-            tsmp.disable_event(i);
+            tsmp.disable_event_ibs(i);
         }
     #endif  // USE_IBS_ALL_ON || USE_IBS_THREAD_MIGRATION
 #else // PEBS (Intel)
@@ -615,20 +660,22 @@ void threadsmpl::end_sampling()
 
 }
 
-
-int threadsmpl::enable_event(int event_id) {
+/* IBS_THREAD_MIGRATION specific function.
+*  Enables the performance monitoring event specified by event_id
+*/ 
+int threadsmpl::enable_event_ibs(int event_id) {
     if (!events[event_id].running) {
-        LOG_HIGH("procsmpl.cpp:enable_event(), Enable event for " << event_id);
+        LOG_HIGH("procsmpl.cpp:enable_event_ibs(), Enable event for " << event_id);
         clock_t start = clock();
         events[event_id].fd = -1;
         events[event_id].fd = perf_event_open(&events[event_id].attr, tsmp.proc_parent->target_pid, event_id, events[event_id].fd, 0);
         if(events[event_id].fd == -1)
         {
             perror("perf_event_open");
-            LOG_HIGH("procsmpl.cpp:enable_event(), Core " << event_id << " could not be initialized");
+            LOG_HIGH("procsmpl.cpp:enable_event_ibs(), Core " << event_id << " could not be initialized");
             return 1;
         }else {
-            LOG_HIGH("procsmpl.cpp:enable_event(), Perf Open Success: " << events[event_id].fd);
+            LOG_HIGH("procsmpl.cpp:enable_event_ibs(), Perf Open Success: " << events[event_id].fd);
         }
 
         // Create mmap buffer for samples
@@ -640,95 +687,28 @@ int threadsmpl::enable_event(int event_id) {
             perror("mmap");
             return 1;
         }
-        // init sighandler
-        int ret;
-        struct f_owner_ex fown_ex;
-        struct sigaction sact;
-
-        // Set up signal handler
-        memset(&sact, 0, sizeof(sact));
-        sact.sa_sigaction = &thread_sighandler;
-        sact.sa_flags = SA_SIGINFO;
-
-        ret = sigaction(SIGIO, &sact, NULL);
-        if(ret)
-        {
-            perror("sigaction");
-            return ret;
-        }
-
-        // Unblock SIGIO signal if necessary
-        sigset_t sold, snew;
-        sigemptyset(&sold);
-        sigemptyset(&snew);
-        sigaddset(&snew, SIGIO);
-
-        ret = sigprocmask(SIG_SETMASK, NULL, &sold);
-        if(ret)
-        {
-            perror("sigaction");
-            return 1;
-        }
-
-        if(sigismember(&sold, SIGIO))
-        {
-            ret = sigprocmask(SIG_UNBLOCK, &snew, NULL);
-            if(ret)
-            {
-                perror("sigaction");
-                return 1;
-            }
-        }
-
-        ret = fcntl(events[event_id].fd, F_SETSIG, SIGIO);
-        if(ret)
-        {
-            perror("fcntl 1");
-            return 1;
-        }
-        ret = fcntl(events[event_id].fd, F_SETFL, O_NONBLOCK | O_ASYNC);
-        if(ret)
-        {
-            perror("fcntl 2");
-            return 1;
-        }
-        // Set owner to current thread
-        fown_ex.type = F_OWNER_TID;
-        fown_ex.pid = gettid();
-        ret = fcntl(events[event_id].fd, F_SETOWN_EX, (unsigned long)&fown_ex);
-        if(ret)
-        {
-            perror("fcntl 3");
-            return 1;
-        }
-
-        ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_RESET, 0);
-        if(ret)
-            perror("ioctl ST");
-
-        ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_ENABLE, 0);
-        if (ret == 0) {
-            events[event_id].running = 1;
-        }
+        int ret = init_thread_sighandler(event_id);
         clock_t end = clock();
         float seconds_update = (float) (end - start) / CLOCKS_PER_SEC;
-        LOG_HIGH("procsmpl.cpp:enable_event()," <<seconds_update<< "," << ret);
+        LOG_HIGH("procsmpl.cpp:enable_event_ibs()," <<seconds_update<< "," << ret);
         return ret;
     }
     return 0; // process already running, success
 }
 
-
-void threadsmpl::disable_event(int event_id) {
+/* IBS_THREAD_MIGRATION specific function.
+*  Disables the performance monitoring event specified by event_id
+*/ 
+void threadsmpl::disable_event_ibs(int event_id) {
     if(events[event_id].running) {
-        LOG_HIGH("procsmpl.cpp:disable_event(), Disable event for " << event_id);
+        LOG_HIGH("procsmpl.cpp:disable_event_ibs(), Disable event for " << event_id);
         events[event_id].running = 0;
         if (events[event_id].fd != -1) {
             int ret = ioctl(events[event_id].fd, PERF_EVENT_IOC_DISABLE, 0);
             //close(events[event_id].fd);
             if(ret)
                 perror("ioctl END");
-                LOG_HIGH("procsmpl.cpp:disable_event(), Err ioctl END: " << events[event_id].fd <<", " << event_id);
+                LOG_HIGH("procsmpl.cpp:disable_event_ibs(), Err ioctl END: " << events[event_id].fd <<", " << event_id);
         }
 
     }
