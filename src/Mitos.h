@@ -16,12 +16,14 @@
 #define VERBOSE_HIGH 3
 
 // Set the current verbosity level (change this value to adjust verbosity)
-#define CURRENT_VERBOSITY VERBOSE_LOW
+#ifndef VERBOSITY 
+#define VERBOSITY 0 
+#endif
 
 // Verbose output macros
-#define LOG_LOW(message) do { if (CURRENT_VERBOSITY >= VERBOSE_LOW) std::cout << "[LOW] " << message << std::endl; } while(0)
-#define LOG_MEDIUM(message) do { if (CURRENT_VERBOSITY >= VERBOSE_MEDIUM) std::cout << "[MEDIUM] " << message << std::endl; } while(0)
-#define LOG_HIGH(message) do { if (CURRENT_VERBOSITY >= VERBOSE_HIGH) std::cout << "[HIGH] " << message << std::endl; } while(0)
+#define LOG_LOW(message) do { if (VERBOSITY >= VERBOSE_LOW) std::cout << "[LOW] " << message << std::endl; } while(0)
+#define LOG_MEDIUM(message) do { if (VERBOSITY >= VERBOSE_MEDIUM) std::cout << "[MEDIUM] " << message << std::endl; } while(0)
+#define LOG_HIGH(message) do { if (VERBOSITY >= VERBOSE_HIGH) std::cout << "[HIGH] " << message << std::endl; } while(0)
 
 
 struct mem_symbol;
@@ -48,7 +50,7 @@ void Mitos_set_sample_latency_threshold(uint64_t t);
 void Mitos_set_handler_fn(sample_handler_fn_t h, void *args);
 
 // Sampler invocation
-void Mitos_begin_sampler();
+int Mitos_begin_sampler();
 void Mitos_end_sampler();
 
 // Memory attribution
@@ -62,14 +64,14 @@ long Mitos_y_index(struct perf_event_sample *s);
 long Mitos_z_index(struct perf_event_sample *s);
 
 // Output
-int Mitos_create_output(struct mitos_output *mout, const char *prefix_name);
+int Mitos_create_output(struct mitos_output *mout, long uid, long tid = 0);
 int Mitos_pre_process(struct mitos_output *mout);
-int Mitos_set_result_mout(mitos_output *mout, const char *prefix_name);
+int Mitos_set_result_mout(mitos_output *mout, std::string prefix_name);
 int Mitos_write_sample(struct perf_event_sample *s, struct mitos_output *mout);
 int Mitos_add_offsets(const char * virt_address, mitos_output *mout);
-int Mitos_openFile(const char *bin_name, mitos_output *mout);
-int Mitos_post_process(const char *bin_name, mitos_output *mout, std::set<std::string>& src_files);
-int Mitos_merge_files(const std::string& dir_prefix, const std::string& dir_first_dir);
+int Mitos_process_binary(const char *bin_name, mitos_output *mout);
+int Mitos_post_process(const char *bin_name, mitos_output *mout, std::string dir_prefix = "");
+int Mitos_merge_files(long unique_id, std::string &result_dir);
 int Mitos_modify_samples(const std::string& dir_prefix, const std::map<std::string, std::string>& path_replacements);
 int Mitos_copy_sources(const std::string& dir_prefix, const std::set<std::string>& src_files);
 #ifdef __cplusplus
