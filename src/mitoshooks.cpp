@@ -18,6 +18,7 @@
 #include <cassert>
 #include <ctime>
 #include <set>
+#include <chrono>
 
 // 512 should be enough for xeon-phi
 #define MAX_THREADS 512
@@ -25,11 +26,7 @@
 #define DEFAULT_LATENCY 4
 #define DEFAULT_FREQ 4000
 
-struct func_args
-{
-    void *(*func)(void*);
-    void *args;
-};
+#define MITOS_MPI_TRACING
 
 
 thread_local static mitos_output mout;
@@ -38,7 +35,7 @@ long ts_output_prefix_omp;
 long tid_omp_first;
 static bool set_period = true;
 
-void Mitos_get_environment_variables(int &sampling_period, int &latency_threshold, int &sampling_frequency){
+void read_mitos_envs(int &sampling_period, int &latency_threshold, int &sampling_frequency){
 
     const char* latency_input = std::getenv("MITOS_LATENCY_THRESHOLD");
     latency_threshold = DEFAULT_LATENCY;
@@ -70,39 +67,31 @@ void sample_handler(perf_event_sample *sample, void *args)
     Mitos_write_sample(sample, &mout);
 }
 
-int MPI_Init(int *argc, char ***argv)
+int pmpi_init_mitos()
 {
-    fprintf(stderr, "[Mitos] MPI_Init hook\n");
-    int ret = PMPI_Init(argc, argv);
-
+    // send timestamp from rank 0 to all others to synchronize folder prefix
     int mpi_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     ts_output = std::time(NULL);
     MPI_Bcast(&ts_output, 1, MPI_LONG, 0, MPI_COMM_WORLD);
-    // send timestamp from rank 0 to all others to synchronize folder prefix
 
     char rank_prefix[54];
     sprintf(rank_prefix, "mitos_%ld_out_%d_", ts_output, mpi_rank);
 
+    //TODO string 
     virt_address = new char[(strlen(rank_prefix) + strlen("/tmp/") + strlen("virt_address.txt") + 1)];
     strcpy(virt_address, "/tmp/");
     strcat(virt_address, rank_prefix);
     strcat(virt_address, "virt_address.txt");
     Mitos_save_virtual_address_offset(std::string(virt_address));
+    
     // Take user inputs
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_LATENCY;
     int sampling_frequency = DEFAULT_FREQ;
-    Mitos_get_environment_variables(sampling_period, latency_threshold, sampling_frequency);
-
-    Mitos_create_output(&mout, ts_output, mpi_rank);
-    pid_t curpid = getpid();
-    LOG_LOW("mitoshooks.cpp: MPI_Init(), Curpid: " << curpid << ", Rank: " << mpi_rank);
-
-    Mitos_pre_process(&mout);
-    Mitos_set_pid(curpid);
-
-    Mitos_set_handler_fn(&sample_handler,NULL);
+    read_mitos_envs(sampling_period, latency_threshold, sampling_frequency);
+    
+    // configure Mitos sampling
     Mitos_set_sample_latency_threshold(latency_threshold);
     if (mpi_rank == 0)
         std::cout << "[Mitos] Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
@@ -116,9 +105,120 @@ int MPI_Init(int *argc, char ***argv)
         if (mpi_rank == 0)
             std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
     }
-    
+    Mitos_set_handler_fn(&sample_handler,NULL);
+    pid_t curpid = getpid();
+    Mitos_set_pid(curpid);
+
+    Mitos_create_output(&mout, ts_output, mpi_rank);
+    LOG_LOW("mitoshooks.cpp: MPI_Init(), Curpid: " << curpid << ", Rank: " << mpi_rank);
+    Mitos_pre_process(&mout);
+
     std::cout << "[Mitos] Begin sampler, rank: " << mpi_rank << "\n";
     Mitos_begin_sampler();
+
+    return 0;
+}
+
+int tracing_mpi_rank;
+
+int pmpi_init_mpi_tracing()
+{
+#ifndef MITOS_MPI_TRACING
+    return 0;
+#endif 
+    MPI_Comm_rank(MPI_COMM_WORLD, &tracing_mpi_rank);
+
+    return 0;
+}
+
+int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request *request)
+{
+    auto start = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
+
+    int ret = PMPI_Isend(buf, count, datatype, dest, tag, comm, request);
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+
+
+    std::string dtype;
+    if(datatype == MPI_DOUBLE)
+        dtype = "MPI_DOUBLE";
+    else
+        dtype = std::to_string(reinterpret_cast<std::uintptr_t>(datatype));
+    std::string mpi_comm;
+    if(comm == MPI_COMM_WORLD)
+        mpi_comm = "MPI_COMM_WORLD";
+    else
+        mpi_comm = std::to_string(reinterpret_cast<std::uintptr_t>(comm));
+
+    std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Isend;";
+    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(buf)) + ";" + std::to_string(count) + ";" + dtype + ";";
+    trace += std::to_string(dest) + ";" + mpi_comm + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(request))+ ";";
+    trace += "\n";
+    if (fputs(trace.c_str(), mout.fout_mpi_traces) == EOF) {perror("Error writing to file");}
+    return ret;
+}
+
+int MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Request *request)
+{
+    auto start = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
+
+    int ret = PMPI_Irecv(buf, count, datatype, source, tag, comm, request);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+
+    
+    std::string dtype;
+    if(datatype == MPI_DOUBLE)
+        dtype = "MPI_DOUBLE";
+    else
+        dtype = std::to_string(reinterpret_cast<std::uintptr_t>(datatype));
+    std::string mpi_comm;
+    if(comm == MPI_COMM_WORLD)
+        mpi_comm = "MPI_COMM_WORLD";
+    else
+        mpi_comm = std::to_string(reinterpret_cast<std::uintptr_t>(comm));
+
+    std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Irecv;";
+    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(buf)) + ";" + std::to_string(count) + ";" + dtype + ";";
+    trace += std::to_string(source) + ";" + mpi_comm + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(request))+ ";";
+    trace += "\n";
+    if (fputs(trace.c_str(), mout.fout_mpi_traces) == EOF) {perror("Error writing to file");}
+    return ret;
+}
+
+int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[])
+{
+    auto start = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
+
+    int ret = PMPI_Waitall(count, array_of_requests, array_of_statuses);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+
+    std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Isend;";
+    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(&(array_of_requests[0]))) + ";" + std::to_string(count) + ";";
+    trace += "\n";
+    if (fputs(trace.c_str(), mout.fout_mpi_traces) == EOF) {perror("Error writing to file");}
+    return ret;
+}
+
+int MPI_Init(int *argc, char ***argv)
+{
+    fprintf(stderr, "[Mitos] MPI_Init hook\n");
+    int ret = PMPI_Init(argc, argv);
+
+    pmpi_init_mitos();
 
     return ret;
 }
@@ -128,34 +228,7 @@ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
     fprintf(stderr, "[Mitos] MPI_Init_thread hook\n");
     int ret = PMPI_Init_thread(argc, argv, required, provided);
 
-    int mpi_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    
-    // Take user inputs
-    int sampling_period = DEFAULT_PERIOD;
-    int latency_threshold = DEFAULT_LATENCY;
-    int sampling_frequency = DEFAULT_FREQ;
-    Mitos_get_environment_variables(sampling_period, latency_threshold, sampling_frequency);
-
-    Mitos_create_output(&mout, mpi_rank);
-    Mitos_pre_process(&mout);
-
-    Mitos_set_handler_fn(&sample_handler,NULL);
-    Mitos_set_sample_latency_threshold(latency_threshold);
-    if (mpi_rank == 0)
-        std::cout << "[Mitos] Mitos sampling parameters: Latency threshold = " << latency_threshold << ", ";
-
-    if(set_period){
-        Mitos_set_sample_event_period(sampling_period);
-        if (mpi_rank == 0)
-            std::cout << "Sampling period: " << sampling_period <<"\n";
-    }
-    else {
-        Mitos_set_sample_time_frequency(sampling_frequency);
-        if (mpi_rank == 0)
-            std::cout << "Sampling frequency: " << sampling_frequency <<"\n";
-    }
-    Mitos_begin_sampler();
+    pmpi_init_mitos();
 
     return ret;
 }
@@ -166,9 +239,9 @@ int MPI_Finalize()
     int mpi_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
     Mitos_end_sampler();
-    MPI_Barrier(MPI_COMM_WORLD);
     LOG_LOW("mitoshooks.cpp: MPI_Finalize(), Flushed raw samples, rank no.: " << mpi_rank);
     Mitos_add_offsets(virt_address, &mout);
+    MPI_Barrier(MPI_COMM_WORLD);
     // merge files
     if (mpi_rank == 0) {
         std::string result_dir;
@@ -246,7 +319,7 @@ static void on_ompt_callback_thread_begin(ompt_thread_t thread_type,
     int sampling_period = DEFAULT_PERIOD;
     int latency_threshold = DEFAULT_LATENCY;
     int sampling_frequency = DEFAULT_FREQ;
-    Mitos_get_environment_variables(sampling_period, latency_threshold, sampling_frequency);
+    read_mitos_envs(sampling_period, latency_threshold, sampling_frequency);
 
     Mitos_pre_process(&mout);
     Mitos_set_pid(tid);

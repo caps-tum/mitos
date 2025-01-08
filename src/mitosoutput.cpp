@@ -1,5 +1,8 @@
 #include <sys/stat.h>
 
+#undef PTHREAD_STACK_MIN
+#define PTHREAD_STACK_MIN 16384
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -99,6 +102,18 @@ int Mitos_create_output(mitos_output *mout, long uid, long tid)
         return 1;
     }
 
+#define MITOS_MPI_TRACING
+#ifdef MITOS_MPI_TRACING
+    // Create file for MPI traces
+    mout->fname_mpi_traces = strdup(std::string(std::string(mout->dname_datadir) + "/mpi_traces.csv").c_str());
+    mout->fout_mpi_traces = fopen(mout->fname_mpi_traces,"w");
+    if(!mout->fout_mpi_traces)
+    {
+        std::cerr << "Mitos: Failed to create MPI traces file!\n";
+        return 1;
+    }
+#endif
+
     mout->ok = true;
 
     return 0;
@@ -174,7 +189,8 @@ int Mitos_write_sample(perf_event_sample *sample, mitos_output *mout)
     Mitos_resolve_symbol(sample);
   
     fprintf(mout->fout_raw,
-            "%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu,",
+            //"%llu,%s,%llu,%llu,%llu,%llu,%llu,%u,%u,%llu,%llu,%u,%llu,",
+            "%lu,%s,%lu,%lu,%lu,%lu,%lu,%u,%u,%lu,%lu,%u,%lu,",
             sample->ip,
             sample->data_symbol,
             sample->data_size,
@@ -359,6 +375,7 @@ int Mitos_add_offsets(const char * virt_address, mitos_output *mout){
     */
     fclose(mout->fout_raw);
     fclose(mout->fout_processed);
+    fclose(mout->fout_mpi_traces);
     LOG_LOW("mitoshooks.cpp: add_offsets(), Successfully added virtual address at the start of each line.");
     return 0;
 }

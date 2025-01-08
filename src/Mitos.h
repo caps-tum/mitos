@@ -145,6 +145,9 @@ struct mitos_output
 
     FILE *fout_raw;
     FILE *fout_processed;
+
+    char *fname_mpi_traces;
+    FILE *fout_mpi_traces;
 };
 
 #endif // MITOS_H
