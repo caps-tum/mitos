@@ -60,7 +60,7 @@ find_package(PerfEvents REQUIRED)
 # Non-essential packages
 find_package(OpenMP)
 find_package(MPI)
-find_package(Dyninst QUIET COMPONENTS SymtabAPI InstructionAPI ParseAPI)
+find_package(Dyninst 13 QUIET COMPONENTS symtabAPI instructionAPI parseAPI)
 if(Dyninst_FOUND)
     message(STATUS "Found Dyninst: ${DYNINST_INCLUDE_DIR}")
 else()
