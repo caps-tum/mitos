@@ -64,6 +64,9 @@ long ts_output = 0;
 void sample_handler(perf_event_sample *sample, void *args)
 {
     LOG_HIGH("mitoshooks.cpp: sample_handler(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
+    auto ts = std::chrono::high_resolution_clock::now();
+    uint64_t ull_ts = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(ts.time_since_epoch()).count());
+    sample->time = ull_ts;
     Mitos_write_sample(sample, &mout);
 }
 
@@ -154,7 +157,7 @@ int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int dest, int t
         mpi_comm = std::to_string(reinterpret_cast<std::uintptr_t>(comm));
 
     std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Isend;";
-    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(buf)) + ";" + std::to_string(count) + ";" + dtype + ";";
     trace += std::to_string(dest) + ";" + mpi_comm + ";";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(request))+ ";";
@@ -186,6 +189,7 @@ int MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source, int tag, 
         mpi_comm = std::to_string(reinterpret_cast<std::uintptr_t>(comm));
 
     std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Irecv;";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";
     trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(buf)) + ";" + std::to_string(count) + ";" + dtype + ";";
     trace += std::to_string(source) + ";" + mpi_comm + ";";
@@ -205,7 +209,8 @@ int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_
     auto end = std::chrono::high_resolution_clock::now();
     unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
 
-    std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Isend;";
+    std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Waitall;";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";
     trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(&(array_of_requests[0]))) + ";" + std::to_string(count) + ";";
     trace += "\n";
