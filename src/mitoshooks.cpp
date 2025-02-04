@@ -20,6 +20,10 @@
 #include <set>
 #include <chrono>
 
+// PAPI START
+#include <papi.h>
+// PAPI END
+
 // 512 should be enough for xeon-phi
 #define MAX_THREADS 512
 #define DEFAULT_PERIOD 4000
@@ -61,15 +65,111 @@ void read_mitos_envs(int &sampling_period, int &latency_threshold, int &sampling
 // MPI hooks
 long ts_output = 0;
 
+int tracing_mpi_rank;
+
 void sample_handler(perf_event_sample *sample, void *args)
 {
     LOG_HIGH("mitoshooks.cpp: sample_handler(), MPI handler sample: cpu= " << sample->cpu << " tid= "  << sample->tid);
     auto ts = std::chrono::high_resolution_clock::now();
     uint64_t ull_ts = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(ts.time_since_epoch()).count());
     sample->time = ull_ts;
+    sample->pid = tracing_mpi_rank;
     Mitos_write_sample(sample, &mout);
 }
 
+int EventSet = PAPI_NULL;
+unsigned long long ull_papi_start = 0;
+int pmpi_start_papi(const char* env_MITOS_MEASURE_PAPI)
+{
+    // PAPI START: Initialize PAPI library
+    int retval;
+    // long long values[4];  // Array to hold PAPI event values
+    // int EventSet = PAPI_NULL;  // PAPI Event Set
+    if ((retval = PAPI_library_init(PAPI_VER_CURRENT)) != PAPI_VER_CURRENT) {
+        fprintf(stderr, "PAPI library init error!\n");
+        MPI_Abort(MPI_COMM_WORLD, retval);
+    }
+    // Create an EventSet
+    if (PAPI_create_eventset(&EventSet) != PAPI_OK) {
+        fprintf(stderr, "Error creating EventSet\n");
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    }
+    // Add the load instructions event (PAPI_LD_INS) to the EventSet
+    if (PAPI_add_event(EventSet, PAPI_LD_INS) != PAPI_OK) {
+        fprintf(stderr, "Error adding PAPI_LD_INS\n");
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    }
+    if (PAPI_add_event(EventSet, PAPI_L1_LDM) != PAPI_OK) {
+        fprintf(stderr, "Error adding PAPI_L1_LDM\n");
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    }
+    if (PAPI_add_event(EventSet, PAPI_TOT_CYC) != PAPI_OK) {
+        fprintf(stderr, "Error adding PAPI_TOT_CYC\n");
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    }
+    if (PAPI_add_event(EventSet, PAPI_L3_LDM) != PAPI_OK) {
+        fprintf(stderr, "Error adding PAPI_L3_LDM\n");
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    }
+    if (PAPI_start(EventSet) != PAPI_OK) {
+        fprintf(stderr, "Error starting PAPI counters\n");
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    }
+    // PAPI END
+
+    auto start = std::chrono::high_resolution_clock::now();
+    ull_papi_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
+
+    return 0;
+}
+int pmpi_end_papi(const char* env_MITOS_MEASURE_PAPI)
+{
+    int r;
+    MPI_Comm_rank(MPI_COMM_WORLD, &r);
+    long long values[4];  // Array to hold PAPI event values
+    // PAPI START: Stop the PAPI counters
+    if (PAPI_stop(EventSet, values) != PAPI_OK) {
+        fprintf(stderr, "Error stopping PAPI counters\n");
+        MPI_Abort(MPI_COMM_WORLD, -1);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_papi_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+    unsigned long long papi_diration_ns = ull_papi_end - ull_papi_start;
+
+    long long LD_INS = values[0];
+    long long L1_LDM = values[1];
+    long long TOT_CYC = values[2];
+    long long L3_LDM = values[3];
+    double LD_density = (double)LD_INS/(double)TOT_CYC;
+    long long L1_miss_density = LD_INS/L1_LDM;
+    long long mem_hit_density = LD_INS/L3_LDM;
+    std::cout << std::fixed << "PAPI_LD_INS," << LD_INS << ",  LD_density," << LD_density << ",  L1_miss_density," << L1_miss_density << ",  mem_hit_density," << mem_hit_density << ",  PAPI_L1_LDM," << L1_LDM << ",  PAPI_L3_LDM," << L3_LDM << ",  PAPI_TOT_CYC," << TOT_CYC << ",  time," << papi_diration_ns <<std::endl;
+    // printf("Rank %d - PAPI_LD_INS: %lld   PAPI_L1_LDM: %lld   PAPI_TOT_CYC: %lld   PAPI_L3_LDM: %lld\n", r, values[0],values[1],values[2],values[3]);
+    PAPI_shutdown();
+    // PAPI END
+
+    //create papi_measurements
+    char* papi_values_filename = strdup(std::string(std::string(env_MITOS_MEASURE_PAPI) + "/data/papi_measurements_" + std::to_string(r) + ".csv").c_str());
+    FILE* papi_values_file = fopen(papi_values_filename,"w");
+    if(!papi_values_file)
+    {
+        std::cerr << "Mitos: Failed to create papi_values_file file!\n";
+        return 1;
+    }
+    std::string output = "PAPI_LD_INS," + std::to_string(LD_INS) + "\n";
+    output += "LD_density," + std::to_string(LD_density) + "\n";
+    output += "L1_miss_density," + std::to_string(L1_miss_density) + "\n";
+    output += "mem_hit_density," + std::to_string(mem_hit_density) + "\n";
+    output += "PAPI_L1_LDM," + std::to_string(L1_LDM) + "\n";
+    output += "PAPI_L3_LDM," + std::to_string(L3_LDM) + "\n";
+    output += "PAPI_TOT_CYC," + std::to_string(TOT_CYC) + "\n";
+    output += "time," + std::to_string(papi_diration_ns) + "\n";
+    if (fputs(output.c_str(), papi_values_file) == EOF) {perror("Error writing to file");}
+        return 0;
+    // papi_values_file->close();
+
+    return 0;
+}
 int pmpi_init_mitos()
 {
     // send timestamp from rank 0 to all others to synchronize folder prefix
@@ -122,7 +222,7 @@ int pmpi_init_mitos()
     return 0;
 }
 
-int tracing_mpi_rank;
+
 
 int pmpi_init_mpi_tracing()
 {
@@ -130,7 +230,7 @@ int pmpi_init_mpi_tracing()
     return 0;
 #endif 
     MPI_Comm_rank(MPI_COMM_WORLD, &tracing_mpi_rank);
-
+    // std::cout << "pmpi_init_mpi_tracing: tracing_mpi_rank = " << tracing_mpi_rank << std::endl;
     return 0;
 }
 
@@ -140,6 +240,8 @@ int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int dest, int t
     unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
 
     int ret = PMPI_Isend(buf, count, datatype, dest, tag, comm, request);
+    if(std::getenv("MITOS_MEASURE_PAPI") != nullptr)
+        return ret;
     
     auto end = std::chrono::high_resolution_clock::now();
     unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
@@ -148,6 +250,8 @@ int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int dest, int t
     std::string dtype;
     if(datatype == MPI_DOUBLE)
         dtype = "MPI_DOUBLE";
+    else if(datatype == MPI_INT)
+        dtype = "MPI_INT";
     else
         dtype = std::to_string(reinterpret_cast<std::uintptr_t>(datatype));
     std::string mpi_comm;
@@ -155,12 +259,13 @@ int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int dest, int t
         mpi_comm = "MPI_COMM_WORLD";
     else
         mpi_comm = std::to_string(reinterpret_cast<std::uintptr_t>(comm));
-
+    
     std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Isend;";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(buf)) + ";" + std::to_string(count) + ";" + dtype + ";";
     trace += std::to_string(dest) + ";" + mpi_comm + ";";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(request))+ ";";
+    trace += std::to_string(tag) + ";";
     trace += "\n";
     if (fputs(trace.c_str(), mout.fout_mpi_traces) == EOF) {perror("Error writing to file");}
     return ret;
@@ -172,14 +277,19 @@ int MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source, int tag, 
     unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
 
     int ret = PMPI_Irecv(buf, count, datatype, source, tag, comm, request);
+    if(std::getenv("MITOS_MEASURE_PAPI") != nullptr)
+        return ret;
 
     auto end = std::chrono::high_resolution_clock::now();
     unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+
 
     
     std::string dtype;
     if(datatype == MPI_DOUBLE)
         dtype = "MPI_DOUBLE";
+    else if(datatype == MPI_INT)
+        dtype = "MPI_INT";
     else
         dtype = std::to_string(reinterpret_cast<std::uintptr_t>(datatype));
     std::string mpi_comm;
@@ -194,6 +304,7 @@ int MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source, int tag, 
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(buf)) + ";" + std::to_string(count) + ";" + dtype + ";";
     trace += std::to_string(source) + ";" + mpi_comm + ";";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(request))+ ";";
+    trace += std::to_string(tag) + ";";
     trace += "\n";
     if (fputs(trace.c_str(), mout.fout_mpi_traces) == EOF) {perror("Error writing to file");}
     return ret;
@@ -205,6 +316,8 @@ int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_
     unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
 
     int ret = PMPI_Waitall(count, array_of_requests, array_of_statuses);
+    if(std::getenv("MITOS_MEASURE_PAPI") != nullptr)
+        return ret;
 
     auto end = std::chrono::high_resolution_clock::now();
     unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
@@ -218,12 +331,58 @@ int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_
     return ret;
 }
 
+int MPI_Wait(MPI_Request *request, MPI_Status *status)
+{
+    auto start = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
+
+    int ret = PMPI_Wait(request, status);
+    if(std::getenv("MITOS_MEASURE_PAPI") != nullptr)
+        return ret;
+
+    auto end = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+
+
+    std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Wait;";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";
+    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(request)) + ";";
+    trace += "\n";
+    if (fputs(trace.c_str(), mout.fout_mpi_traces) == EOF) {perror("Error writing to file");}
+    return ret;
+}
+
 int MPI_Init(int *argc, char ***argv)
 {
     fprintf(stderr, "[Mitos] MPI_Init hook\n");
+
+    auto start = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
+
     int ret = PMPI_Init(argc, argv);
 
-    pmpi_init_mitos();
+    auto end = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+
+    const char* env_MITOS_MEASURE_PAPI = std::getenv("MITOS_MEASURE_PAPI");
+    if(env_MITOS_MEASURE_PAPI != nullptr)
+    {
+        std::cout << "[Mitos-PAPI] MPI_Init\n";
+        pmpi_start_papi(env_MITOS_MEASURE_PAPI);
+    }
+    else
+    {
+        pmpi_init_mitos();
+
+        pmpi_init_mpi_tracing();
+
+        std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Init;";
+        trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";
+        trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
+        trace += "\n";
+        if (fputs(trace.c_str(), mout.fout_mpi_traces) == EOF) {perror("Error writing to file");}
+    }
 
     return ret;
 }
@@ -240,25 +399,34 @@ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided)
 
 int MPI_Finalize()
 {
-    std::cout << "[Mitos] MPI Finalize\n";
-    int mpi_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    Mitos_end_sampler();
-    LOG_LOW("mitoshooks.cpp: MPI_Finalize(), Flushed raw samples, rank no.: " << mpi_rank);
-    Mitos_add_offsets(virt_address, &mout);
-    MPI_Barrier(MPI_COMM_WORLD);
-    // merge files
-    if (mpi_rank == 0) {
-        std::string result_dir;
-        Mitos_merge_files(ts_output, result_dir);
-        
-        mitos_output result_mout;
-        Mitos_set_result_mout(&result_mout, result_dir);    
-        Mitos_process_binary("/proc/self/exe", &result_mout);
-        Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
+    const char* env_MITOS_MEASURE_PAPI = std::getenv("MITOS_MEASURE_PAPI");
+    if(env_MITOS_MEASURE_PAPI != nullptr)
+    {
+        std::cout << "[Mitos-PAPI] MPI Finalize\n";
+        pmpi_end_papi(env_MITOS_MEASURE_PAPI);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
-    delete[] virt_address;
+    else
+    {
+        std::cout << "[Mitos] MPI Finalize\n";
+        int mpi_rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+        Mitos_end_sampler();
+        LOG_LOW("mitoshooks.cpp: MPI_Finalize(), Flushed raw samples, rank no.: " << mpi_rank);
+        Mitos_add_offsets(virt_address, &mout);
+        MPI_Barrier(MPI_COMM_WORLD);
+        // merge files
+        if (mpi_rank == 0) {
+            std::string result_dir;
+            Mitos_merge_files(ts_output, result_dir);
+            
+            mitos_output result_mout;
+            Mitos_set_result_mout(&result_mout, result_dir);    
+            Mitos_process_binary("/proc/self/exe", &result_mout);
+            Mitos_post_process("/proc/self/exe", &result_mout, result_dir);
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+        delete[] virt_address;
+    }
     return PMPI_Finalize();
 }
 #endif // USE_MPI

@@ -27,7 +27,7 @@ add_executable(mitos_omp_post_process mitos_omp_post_process.cpp)
 target_link_libraries(mitos mitoshooks numa hwloc ${CMAKE_THREAD_LIBS_INIT} stdc++fs)
 target_link_libraries(mitosrun mitos)
 target_link_libraries(mitos_omp_post_process mitos common)
-target_link_libraries(mitoshooks dl)
+target_link_libraries(mitoshooks dl PAPI::PAPI)
 
 if(MPI_FOUND)
     target_link_libraries(mitos ${MPI_LIBRARIES})

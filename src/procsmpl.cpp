@@ -76,11 +76,14 @@ void threadsmpl::update_sampling_events_ibs() {
     // function completes if enable thread was successful
     // possible disadvantage: function only completes if enable_event_ibs has been successful (no other IBS process runs on same core)
 #if VERBOSITY >= VERBOSE_HIGH
-   int has_switch = 0;
-   struct timespec tp;
-   struct timespec tp2;
-   clockid_t clk_id = CLOCK_PROCESS_CPUTIME_ID;
-   int t_start2 = clock_gettime(clk_id, &tp);
+    int has_switch = 0;
+    // struct timespec tp;
+    // struct timespec tp2;
+    // clockid_t clk_id = CLOCK_PROCESS_CPUTIME_ID;
+    // int t_start = clock_gettime(clk_id, &tp);
+    auto start = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
+
 #endif // VERBOSITY >= VERBOSE_HIGH
     while(ret != 0) {
 
@@ -110,12 +113,14 @@ void threadsmpl::update_sampling_events_ibs() {
         }
     }
 #if VERBOSITY >= VERBOSE_HIGH
-    clock_t t_end = clock();
-    float seconds = (float)(t_end - t_start) / CLOCKS_PER_SEC;
-   int t_end2 = clock_gettime(clk_id, &tp2);
-   LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), has_switch: " << has_switch << "," << (tp2.tv_nsec - tp.tv_nsec));
-   LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), has_switch: " << has_switch << "," << seconds);
-    float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
+//     clock_t t_end = clock();
+//     float seconds = (float)(t_end - t_start) / CLOCKS_PER_SEC;
+//    int t_end2 = clock_gettime(clk_id, &tp2);
+    auto end = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+   //LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), has_switch: " << has_switch << "," << (tp2.tv_nsec - tp.tv_nsec));
+   LOG_HIGH ("procsmpl.cpp:update_sampling_events_ibs(), has_switch: " << has_switch << "," << (ull_end - ull_start));
+    // float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
 #endif // VERBOSITY >= VERBOSE_HIGH
 }
 
@@ -152,9 +157,9 @@ void thread_sighandler(int sig, siginfo_t *info, void *extra)
 #endif // USE_IBS_THREAD_MIGRATION
 #if VERBOSITY >= VERBOSE_HIGH
     double t_end = ((double) clock())/ CLOCKS_PER_SEC;
-    float seconds = (float)(time_process_end - start) / CLOCKS_PER_SEC;
-    float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
-    LOG_HIGH ("procsmpl.cpp:thread_sighandler(), t_start: " t_start <<", t_end: " << t_end << ", gettid(): " << gettid() << ", fd: " << fd << ", sched_getcpu(): " << sched_getcpu());
+    // float seconds = (float)(time_process_end - start) / CLOCKS_PER_SEC;
+    // float seconds_update = (float) (time_update_sample_end - time_process_end) / CLOCKS_PER_SEC;
+    LOG_HIGH ("procsmpl.cpp:thread_sighandler(), t_start: " << t_start << ", t_end: " << t_end << ", gettid(): " << gettid() << ", fd: " << fd << ", sched_getcpu(): " << sched_getcpu());
 #endif // VERBOSITY >= VERBOSE_HIGH
 }
 
