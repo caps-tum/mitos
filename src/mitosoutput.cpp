@@ -45,6 +45,9 @@ SymtabAPI::Symtab *symtab_obj;
 SymtabCodeSource *symtab_code_src;
 int sym_success = 0;
 
+#define MITOS_MPI_TRACING
+
+
 int Mitos_create_output(mitos_output *mout, long uid, long tid)
 {
     memset(mout,0,sizeof(struct mitos_output));
@@ -102,7 +105,7 @@ int Mitos_create_output(mitos_output *mout, long uid, long tid)
         return 1;
     }
 
-#define MITOS_MPI_TRACING
+
 #ifdef MITOS_MPI_TRACING
     // Create file for MPI traces
     mout->fname_mpi_traces = strdup(std::string(std::string(mout->dname_datadir) + "/mpi_traces.csv").c_str());
@@ -635,6 +638,40 @@ int Mitos_merge_files(long unique_id, std::string &result_dir) {
     LOG_LOW("mitosoutput.cpp, Mitos_merge_files(), Deleting " << path_first_dir);
     // delete first folder
     fs::remove_all(path_first_dir);
+
+#ifdef MITOS_MPI_TRACING
+    std::string path_MPI_traces_dest = path_dir_result + "/data/mpi_traces.csv";
+    // check if file exist
+    if (fs::exists(path_MPI_traces_dest)) {
+        std::ofstream file_MPI_traces_out;
+        file_MPI_traces_out.open(path_MPI_traces_dest, std::ios_base::app);
+        // for other directories, copy samples to dest dir
+        for (auto const& dir_entry : std::filesystem::directory_iterator{path_root})
+        {
+            if (dir_entry.path().u8string().rfind("./"+ dir_prefix) == 0
+            && dir_entry.path().u8string() != path_first_dir
+            && dir_entry.path().u8string() != path_dir_result) {
+                LOG_LOW("mitosoutput.cpp: Mitos_merge_files(), Move Data " << dir_entry.path() << " to Result Folder...");
+                // src file
+                std::string path_MPI_traces_src = dir_entry.path().u8string() + "/data/mpi_traces.csv";
+                if (fs::exists(path_MPI_traces_src)) {
+                    // copy data
+                    std::ifstream file_MPI_traces_in(path_MPI_traces_src);
+                    std::string line;
+                    while (std::getline(file_MPI_traces_in, line))
+                    {
+                        file_MPI_traces_out << line << "\n";
+                    }
+                    file_MPI_traces_in.close();
+                    // delete old folder
+                    //LOG_LOW("mitosoutput.cpp, Mitos_merge_files(), Deleting " << dir_entry.path().u8string());
+                    //fs::remove_all(dir_entry.path().u8string());
+                }
+            }
+        } // END LOOP
+        file_MPI_traces_out.close();
+    }
+#endif
 
     std::string path_samples_dest = path_dir_result + "/data/raw_samples.csv";
     // check if file exist

@@ -67,6 +67,7 @@ else()
     message(STATUS "Could NOT find Dyninst")
 endif()
 find_package(PAPI REQUIRED)
+find_package(sys-sage REQUIRED)
 
 # C-Defines for non-essential packages
 if(MPI_FOUND)
