@@ -220,7 +220,7 @@ int pmpi_end_papi()
             MPI_Abort(MPI_COMM_WORLD, -1);
         }
         for (int i = 0; i < IMC_PER_SOCKET; i++) {
-            socket_mem_traffic += uncore_values[i]*64;
+            socket_mem_traffic += uncore_values[i];
         }   
     }
 
@@ -332,6 +332,23 @@ int pmpi_init_mpi_tracing()
     return 0;
 }
 
+//////////////////////////////// MPI tracing
+
+std::string parseMpiDatatype(MPI_Datatype datatype)
+{
+    if(datatype == MPI_DOUBLE)
+        return "MPI_DOUBLE";
+    else if(datatype == MPI_INT)
+        return "MPI_INT";
+    return std::to_string(reinterpret_cast<std::uintptr_t>(datatype)); //else
+}
+std::string parseMpiComm(MPI_Comm comm)
+{
+    if(comm == MPI_COMM_WORLD)
+        return "MPI_COMM_WORLD";
+    return std::to_string(reinterpret_cast<std::uintptr_t>(comm)); //else
+}
+
 int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request *request)
 {
     if(env_MITOS_MEASURE_PAPI != nullptr)
@@ -346,18 +363,9 @@ int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int dest, int t
     unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
 
 
-    std::string dtype;
-    if(datatype == MPI_DOUBLE)
-        dtype = "MPI_DOUBLE";
-    else if(datatype == MPI_INT)
-        dtype = "MPI_INT";
-    else
-        dtype = std::to_string(reinterpret_cast<std::uintptr_t>(datatype));
-    std::string mpi_comm;
-    if(comm == MPI_COMM_WORLD)
-        mpi_comm = "MPI_COMM_WORLD";
-    else
-        mpi_comm = std::to_string(reinterpret_cast<std::uintptr_t>(comm));
+    std::string dtype = parseMpiDatatype(datatype);
+    std::string mpi_comm = parseMpiComm(comm);
+    
     
     std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Isend;";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
@@ -385,18 +393,8 @@ int MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source, int tag, 
 
 
     
-    std::string dtype;
-    if(datatype == MPI_DOUBLE)
-        dtype = "MPI_DOUBLE";
-    else if(datatype == MPI_INT)
-        dtype = "MPI_INT";
-    else
-        dtype = std::to_string(reinterpret_cast<std::uintptr_t>(datatype));
-    std::string mpi_comm;
-    if(comm == MPI_COMM_WORLD)
-        mpi_comm = "MPI_COMM_WORLD";
-    else
-        mpi_comm = std::to_string(reinterpret_cast<std::uintptr_t>(comm));
+    std::string dtype = parseMpiDatatype(datatype);
+    std::string mpi_comm = parseMpiComm(comm);
 
     std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Irecv;";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";
@@ -447,6 +445,32 @@ int MPI_Wait(MPI_Request *request, MPI_Status *status)
 
 
     std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Wait;";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";
+    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(request)) + ";";
+    trace += "\n";
+    if (fputs(trace.c_str(), mout.fout_mpi_traces) == EOF) {perror("Error writing to file");}
+    return ret;
+}
+
+int MPI_Allreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm)
+{
+    if(env_MITOS_MEASURE_PAPI != nullptr)
+        return MPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
+
+    int ret = MPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+
+
+    std::string dtype = parseMpiDatatype(datatype);
+    std::string mpi_comm = parseMpiComm(comm);
+
+    std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Allreduce;";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";
     trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
     trace += std::to_string(reinterpret_cast<std::uintptr_t>(request)) + ";";
