@@ -1,4 +1,10 @@
-get_filename_component(SELF_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
-include(${SELF_DIR}/mitos-targets.cmake)
-get_filename_component(Mitos_INCLUDE_DIRS
-   "${SELF_DIR}/../../include/Mitos" ABSOLUTE)
+include(CMakeFindDependencyMacro)
+
+find_dependency(Threads REQUIRED)
+find_dependency(Dyninst 13 COMPONENTS symtabAPI instructionAPI parseAPI)
+find_dependency(PAPI REQUIRED)
+find_dependency(sys-sage REQUIRED)
+# Only if Mitos was built with MPI support:
+find_dependency(MPI)
+
+include("${CMAKE_CURRENT_LIST_DIR}/mitos-targets.cmake")
