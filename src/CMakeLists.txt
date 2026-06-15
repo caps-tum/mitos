@@ -1,9 +1,5 @@
-# Include dirs required
+# Include dirs required (directory-scoped, for things without imported targets)
 include_directories(${MPI_INCLUDE_PATH})
-if(Dyninst_FOUND)
-    target_include_directories(mitos PUBLIC ${DYNINST_INCLUDE_DIR})
-    target_include_directories(mitoshooks PUBLIC ${DYNINST_INCLUDE_DIR})
-endif()
 
 # If VERBOSITY is not defined via command line, use default
 if(DEFINED VERBOSITY)
@@ -26,20 +22,21 @@ add_library(mitoshooks SHARED ${MITOSHOOKS_SRC_FILES} ${MITOS_SRC_FILES})
 add_executable(mitosrun mitosrun.cpp)
 add_executable(mitos_omp_post_process mitos_omp_post_process.cpp)
 
-# Linkage
-target_link_libraries(mitos mitoshooks numa hwloc ${CMAKE_THREAD_LIBS_INIT} stdc++fs)
-target_link_libraries(mitosrun mitos)
-target_link_libraries(mitos_omp_post_process mitos common)
-target_link_libraries(mitoshooks dl PAPI::PAPI sys-sage::sys-sage)
+# Linkage — all keyword-style for mitos
+target_link_libraries(mitos PUBLIC mitoshooks numa hwloc ${CMAKE_THREAD_LIBS_INIT} stdc++fs)
+target_link_libraries(mitosrun PRIVATE mitos)
+target_link_libraries(mitos_omp_post_process PRIVATE mitos common)
+target_link_libraries(mitoshooks PRIVATE dl PAPI::PAPI sys-sage::sys-sage)
 
 if(MPI_FOUND)
     target_link_libraries(mitos PUBLIC MPI::MPI_CXX)
 endif()
 
 if(Dyninst_FOUND)
+    target_include_directories(mitos PUBLIC ${DYNINST_INCLUDE_DIR})
+    target_include_directories(mitoshooks PUBLIC ${DYNINST_INCLUDE_DIR})
     target_link_libraries(mitos PUBLIC Dyninst::symtabAPI Dyninst::instructionAPI Dyninst::parseAPI)
 endif()
-
 
 # Install
 install(FILES ${MITOS_HDR_PUBLIC}
@@ -49,7 +46,7 @@ install(TARGETS mitosrun
         DESTINATION bin)
 install(TARGETS mitos_omp_post_process
         EXPORT mitos-targets
-        DESTINATION bin) 
+        DESTINATION bin)
 install(TARGETS mitos
         EXPORT mitos-targets
         DESTINATION lib)
