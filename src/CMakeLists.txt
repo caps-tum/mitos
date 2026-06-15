@@ -1,6 +1,9 @@
 # Include dirs required
 include_directories(${MPI_INCLUDE_PATH})
-include_directories(${DYNINST_INCLUDE_DIR})
+if(Dyninst_FOUND)
+    target_include_directories(mitos PUBLIC ${DYNINST_INCLUDE_DIR})
+    target_include_directories(mitoshooks PUBLIC ${DYNINST_INCLUDE_DIR})
+endif()
 
 # If VERBOSITY is not defined via command line, use default
 if(DEFINED VERBOSITY)
@@ -30,11 +33,11 @@ target_link_libraries(mitos_omp_post_process mitos common)
 target_link_libraries(mitoshooks dl PAPI::PAPI sys-sage::sys-sage)
 
 if(MPI_FOUND)
-    target_link_libraries(mitos ${MPI_LIBRARIES})
+    target_link_libraries(mitos PUBLIC MPI::MPI_CXX)
 endif()
 
 if(Dyninst_FOUND)
-    target_link_libraries(mitos symtabAPI instructionAPI parseAPI)
+    target_link_libraries(mitos PUBLIC Dyninst::symtabAPI Dyninst::instructionAPI Dyninst::parseAPI)
 endif()
 
 
