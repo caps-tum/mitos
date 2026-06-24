@@ -453,6 +453,50 @@ int MPI_Wait(MPI_Request *request, MPI_Status *status)
     return ret;
 }
 
+// Array fields (sendcounts, sdispls, recvcounts, rdispls) are comma-separated; top-level fields stay semicolon separated
+int MPI_Alltoallv(const void *sendbuf, const int sendcounts[], const int sdispls[], MPI_Datatype sendtype, void *recvbuf, const int recvcounts[], const int rdispls[], MPI_Datatype recvtype, MPI_Comm comm)
+{
+    if(env_MITOS_MEASURE_PAPI != nullptr)
+        return PMPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_start = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(start.time_since_epoch()).count());
+
+    int ret = PMPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    unsigned long long ull_end = static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::nanoseconds>(end.time_since_epoch()).count());
+
+
+    int comm_size = 0;
+    PMPI_Comm_size(comm, &comm_size);
+
+    std::string send_dtype = parseMpiDatatype(sendtype);
+    std::string recv_dtype = parseMpiDatatype(recvtype);
+    std::string mpi_comm = parseMpiComm(comm);
+
+    std::string s_sendcounts, s_sdispls, s_recvcounts, s_rdispls;
+    for(int i = 0; i < comm_size; i++)
+    {
+        std::string sep = (i < comm_size - 1) ? "," : "";
+        s_sendcounts += std::to_string(sendcounts[i]) + sep;
+        s_sdispls += std::to_string(sdispls[i]) + sep;
+        s_recvcounts += std::to_string(recvcounts[i]) + sep;
+        s_rdispls += std::to_string(rdispls[i]) + sep;
+    }
+
+    std::string trace = std::to_string(tracing_mpi_rank) + ";MPI_Alltoallv;";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))) + ";";
+    trace += std::to_string(ull_start) + ";" + std::to_string(ull_end) + ";";
+    trace += std::to_string(comm_size) + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(sendbuf)) + ";" + s_sendcounts + ";" + s_sdispls + ";" + send_dtype + ";";
+    trace += std::to_string(reinterpret_cast<std::uintptr_t>(recvbuf)) + ";" + s_recvcounts + ";" + s_rdispls + ";" + recv_dtype + ";";
+    trace += mpi_comm + ";";
+    trace += "\n";
+    if (fputs(trace.c_str(), mout.fout_mpi_traces) == EOF) {perror("Error writing to file");}
+    return ret;
+}
+
 // int MPI_Allreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm)
 // { TODO check this
 //     if(env_MITOS_MEASURE_PAPI != nullptr)
